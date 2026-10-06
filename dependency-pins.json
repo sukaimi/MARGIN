@@ -1,0 +1,37 @@
+[
+  {
+    "destination": "app/src/main/assets/models/whisper-tiny-en/tiny.en-encoder.int8.onnx",
+    "bytes": 12937772,
+    "sha256": "0ce578b827c94a961aacb8fa14b02f096504b337e5c94be37c36238cbe3e8bc6",
+    "officialArchive": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-whisper-tiny.en.tar.bz2",
+    "archiveMember": "tiny.en-encoder.int8.onnx"
+  },
+  {
+    "destination": "app/src/main/assets/models/whisper-tiny-en/tiny.en-decoder.int8.onnx",
+    "bytes": 89853865,
+    "sha256": "06c0e6ff6348d427e51839219d1c886c18cfdf411e629e33f5e1679bff9c1527",
+    "officialArchive": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-whisper-tiny.en.tar.bz2",
+    "archiveMember": "tiny.en-decoder.int8.onnx"
+  },
+  {
+    "destination": "app/src/main/assets/models/whisper-tiny-en/tiny.en-tokens.txt",
+    "bytes": 835554,
+    "sha256": "306cd27f03c1a714eca7108e03d66b7dc042abe8c258b44c199a7ed9838dd930",
+    "officialArchive": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-whisper-tiny.en.tar.bz2",
+    "archiveMember": "tiny.en-tokens.txt"
+  },
+  {
+    "destination": "app/src/main/assets/models/vad/silero_vad.onnx",
+    "bytes": 643854,
+    "sha256": "9e2449e1087496d8d4caba907f23e0bd3f78d91fa552479bb9c23ac09cbb1fd6",
+    "officialDownload": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/silero_vad.onnx",
+    "publishedSha256": "9e2449e1087496d8d4caba907f23e0bd3f78d91fa552479bb9c23ac09cbb1fd6"
+  },
+  {
+    "destination": "app/libs/sherpa-onnx-1.13.5.aar",
+    "bytes": 49095090,
+    "sha256": "6419cd8bc983e0c4fab06067f0fe0313fdc0f7103818ac1e7a08d50787b7a82b",
+    "officialDownload": "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.5/sherpa-onnx-1.13.5.aar",
+    "publishedSha256": "6419cd8bc983e0c4fab06067f0fe0313fdc0f7103818ac1e7a08d50787b7a82b"
+  }
+]

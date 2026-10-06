@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="margin_paper">#F5F2EA</color>
+    <color name="margin_surface">#FFFFFF</color>
+    <color name="margin_ink">#1D2824</color>
+    <color name="margin_secondary">#59645D</color>
+    <color name="margin_pine">#254D42</color>
+    <color name="margin_pine_soft">#E4ECE5</color>
+    <color name="margin_rule">#D8DED6</color>
+    <color name="margin_record">#B13F32</color>
+    <color name="margin_record_soft">#FAE7E0</color>
+    <color name="margin_focus">#25685E</color>
+</resources>

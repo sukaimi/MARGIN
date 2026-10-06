@@ -1,0 +1,23 @@
+# Local build configuration and dependencies
+.gradle/
+**/build/
+local.properties
+.env
+.env.*
+*.keystore
+*.jks
+*.apk
+*.aab
+*.aar
+*.so
+*.onnx
+*.gguf
+*.wav
+*.pcm
+*.mp3
+app/libs/
+app/src/main/assets/models/
+app/src/main/jniLibs/
+recordings/
+transcripts/
+user-data/
