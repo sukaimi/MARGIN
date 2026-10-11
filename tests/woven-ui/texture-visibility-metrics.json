@@ -1,0 +1,17 @@
+{
+  "scope": "Host pixel simulation, not Android or A70 acceptance",
+  "quarter_decode": "Pillow BOX approximation",
+  "old_rgb_stddev": [
+    0.49994409351574737,
+    0.36593159738409736,
+    0.32365349133862975
+  ],
+  "new_rgb_stddev": [
+    1.812169378943629,
+    2.818612532980392,
+    4.098006547250516
+  ],
+  "worst_secondary_text_contrast": 5.354886029138014,
+  "density_contract": "Bitmap shader unit scaled to dp in production constructor",
+  "edge_contract": "3dp lower lip, 1.5dp upper highlight within existing clip"
+}

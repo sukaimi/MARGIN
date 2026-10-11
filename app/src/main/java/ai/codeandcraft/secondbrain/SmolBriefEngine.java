@@ -26,15 +26,11 @@ public final class SmolBriefEngine implements MeetingBriefEngine {
     private static final long MODEL_BYTES = 1915305312L;
     private static final String EXECUTABLE = "libmargin-llama.so";
     private static final int MAX_SNIPPETS = 16, MAX_RAW_CHARS = 1800, MAX_SNIPPET_CHARS = 400;
-    private static final int MAX_ITEMS = 12, MAX_ITEM_CHARS = 300, MAX_IDS_PER_ITEM = 4;
+    private static final int MAX_ITEMS = 8, MAX_ITEM_CHARS = 300, MAX_IDS_PER_ITEM = 4;
     private static final int MAX_STDOUT = 64 * 1024;
     private static final long DEADLINE_MS = 180_000L, MIN_AVAIL_BYTES = 2800L << 20, RESERVE_BYTES = 384L << 20;
     private static final List<String> SECTIONS = Arrays.asList("summary", "decisions", "actions", "questions", "risks");
-    private static final String INSTRUCTIONS =
-        "You draft an editable meeting brief using ONLY the numbered snippets in the user message. "
-        + "Do not add facts, names, owners, dates or quotes that are not in the snippets. Never infer an owner, assignment or deadline. Metadata is not meeting evidence. Items may be wrong; keep them short. "
-        + "Reply with one JSON object {\"items\":[{\"section\":\"summary|decisions|actions|questions|risks\",\"text\":\"...\",\"sourceIds\":[1]}]} and nothing else. "
-        + "Use at most 6 items, each under 300 characters, each citing snippet ids. If nothing is supported, return {\"items\":[]}.";
+    private static final String INSTRUCTIONS = BriefAccuracyPolicy.INSTRUCTIONS;
 
     private static final class Snippet { String text; int start, end; JSONObject anchor; }
     private static final class Stop extends Exception { final String status; Stop(String s) { super(s); status = s; } }
@@ -90,7 +86,7 @@ public final class SmolBriefEngine implements MeetingBriefEngine {
     private static JSONObject result(String status, String detail, long begin) throws Exception {
         return new JSONObject().put("schemaVersion", 1).put("engine", ID).put("status", status).put("detail", detail)
             .put("provenance", "AI_DRAFT").put("claimsVerified", false).put("items", new JSONArray())
-            .put("experimental", true).put("elapsedMs", SystemClock.elapsedRealtime() - begin);
+            .put("experimental", true).put("accuracyPolicy", BriefAccuracyPolicy.REVISION).put("elapsedMs", SystemClock.elapsedRealtime() - begin);
     }
 
     private static void checkLive(AtomicBoolean cancel) throws IOException {
@@ -226,7 +222,8 @@ public final class SmolBriefEngine implements MeetingBriefEngine {
     private static String run(Context context, File exe, File model, File prompt, File schema, AtomicBoolean cancel) throws Exception {
         List<String> argv = Arrays.asList(exe.getAbsolutePath(), "-m", model.getAbsolutePath(),
             "--no-conversation", "--simple-io", "--no-display-prompt", "--no-warmup", "--fit", "off",
-            "-c", "2048", "-n", "256", "-t", "2", "-tb", "2", "-b", "128", "-ub", "128", "-ngl", "0", "-fa", "off",
+            "--no-context-shift",
+            "-c", "2048", "-n", "384", "-t", "2", "-tb", "2", "-b", "128", "-ub", "128", "-ngl", "0", "-fa", "off",
             "--temp", "0.6", "--top-p", "0.95", "--seed", "42",
             "-f", prompt.getAbsolutePath(), "-jf", schema.getAbsolutePath());
         ProcessBuilder pb = new ProcessBuilder(argv);
@@ -335,11 +332,14 @@ public final class SmolBriefEngine implements MeetingBriefEngine {
                     unique.add(id);
                 }
                 JSONArray citations = new JSONArray();
+                List<String> citedText = new ArrayList<>();
                 for (int id : unique) {
                     Snippet s = snippets.get(id - 1);
+                    citedText.add(s.text);
                     citations.put(new JSONObject().put("quote", s.text).put("rawTextCharStart", s.start)
                         .put("rawTextCharEnd", s.end).put("anchor", new JSONObject(s.anchor.toString())));
                 }
+                if (BriefAccuracyPolicy.obviousStatusConflict(section, text, citedText)) return null;
                 out.put(new JSONObject().put("section", section).put("text", text).put("provenance", "AI_DRAFT")
                     .put("citations", citations).put("owner", JSONObject.NULL).put("date", JSONObject.NULL).put("done", false));
             }

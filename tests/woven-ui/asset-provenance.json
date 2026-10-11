@@ -1,0 +1,23 @@
+{
+  "credit": "Original generated production assets; source metadata retained in approved-ui-assets/asset-audit.json. No external artwork.",
+  "pillow": "11.2.1",
+  "foreground": "Full 1254 canvas -> 842 within 1080 (11% inset), then 432. No alpha trim or outer mask.",
+  "legacy": "Same composed foreground, ivory background, central 72/108 viewport; no baked mask.",
+  "sources": {
+    "jotterbook-warm-woven-texture.png": "68a4bc265906fb6611c5c483f07bed70dd5f80d044751cd9205e57e120c2df44",
+    "jotterbook-cream-paper-grain.png": "7ec80bf5bc0f2fe31964d51757a9525fc27e7d6b5a113e0a5eb4cb1d1bdb1424",
+    "jotterbook-adaptive-foreground.png": "87cbd5cf54fef80274d25339067cc66203d66ee80fffbe60608e74d43a9da4f5",
+    "03-woven-notebook-brighter-v2.png": "783deb81209c454f9cffdd85d6488ccda30af8caf1db0e73b4c9be1dd8d9e731"
+  },
+  "derived": {
+    "app/src/main/res/drawable-nodpi/ic_launcher_book.png": "aeaaa7ba5b1a6780928c9615d5edb644ffc9a04ded366b9cbd311fa0f7f63dfb",
+    "app/src/main/res/drawable-nodpi/paper_grain.png": "7ec80bf5bc0f2fe31964d51757a9525fc27e7d6b5a113e0a5eb4cb1d1bdb1424",
+    "app/src/main/res/drawable-nodpi/woven_texture.png": "68a4bc265906fb6611c5c483f07bed70dd5f80d044751cd9205e57e120c2df44",
+    "app/src/main/res/mipmap-hdpi/ic_launcher.png": "6357179fbcc1739dc18ef080fab5152fb917ffdc540c22d92e18cd67f2559153",
+    "app/src/main/res/mipmap-mdpi/ic_launcher.png": "0cd7f617793a9780a482ab8adb0b6f4aa39e16fdc186e3d3f215f52076cba7ae",
+    "app/src/main/res/mipmap-xhdpi/ic_launcher.png": "5bb78603c6976a5086a33aa36ef2cff207deef1c648231646b37446a83340281",
+    "app/src/main/res/mipmap-xxhdpi/ic_launcher.png": "bbfdaa45f5a8b632a27819147cd92a1a6ea8d89ad7cdce2fe0753d2e182c2fc3",
+    "app/src/main/res/mipmap-xxxhdpi/ic_launcher.png": "de9a9ea803250832dd649576606ad465caced3afbe243a0e74ea30db5209d868",
+    "tests/woven-ui/proof/launcher-masks-and-48px.png": "c0bc3eb5e6dfb98b14731a407786bfb56646a657660281ea67d208ae6ba53e1e"
+  }
+}

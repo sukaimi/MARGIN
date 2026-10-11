@@ -21,3 +21,19 @@ app/src/main/jniLibs/
 recordings/
 transcripts/
 user-data/
+
+# Generated output and local-only state
+__pycache__/
+*.pyc
+*.jar
+*.idsig
+*.pem
+*.key
+.DS_Store
+# Only the reviewed UI cues are source assets, never meeting audio.
+!app/src/main/res/raw/ui_ceramic.mp3
+!app/src/main/res/raw/ui_paper.mp3
+!app/src/main/res/raw/ui_wood.mp3
+!approved-ui-assets/01-muted-ceramic-tap.mp3
+!approved-ui-assets/02-paper-rustle.mp3
+!approved-ui-assets/03-dry-wood-tap.mp3

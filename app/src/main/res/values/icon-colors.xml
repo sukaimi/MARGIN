@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="icon_paper">#F8F6F0</color>
+    <color name="icon_background">#F5EFE0</color>
     <color name="icon_cobalt">#244ACB</color>
     <color name="icon_yellow">#FFE18B</color>
     <color name="icon_coral">#FA6C57</color>
