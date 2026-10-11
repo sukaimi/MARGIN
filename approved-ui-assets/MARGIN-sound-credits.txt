@@ -1,0 +1,63 @@
+MARGIN / JotterBook UI sound credits
+
+Original recorded material, trimmed, mono, filtered and faded for a quiet tactile UI concept. Preview files are derived from Freesound public high-quality MP3 previews, not original WAV downloads. No account or credentials used.
+
+The ceramic, paper and wood clips are bundled UI cues. They are not meeting recordings. Physical sound and audio-policy acceptance remain part of device testing.
+
+Sources and licence evidence (checked 7 October 2026):
+
+Ceramic - OwlStorm
+https://freesound.org/people/OwlStorm/sounds/209014/
+CC0 shown on the source page; copying, modification and commercial use permitted.
+
+Paper - BenjaminNelan
+https://freesound.org/people/BenjaminNelan/sounds/353125/
+CC0 shown on the source page; copying, modification and commercial use permitted.
+
+Wood - kyles
+https://freesound.org/people/kyles/sounds/452621/
+CC0 shown on the source page; copying, modification and commercial use permitted.
+
+Edits:
+[
+  {
+    "file": "01-muted-ceramic-tap.wav",
+    "source": "ceramic",
+    "trim_seconds": [
+      0.15,
+      0.59
+    ],
+    "duration_seconds": 0.44,
+    "peak_dbfs": -14.000000000021549,
+    "rms_dbfs": -34.747082574290374,
+    "lowpass_hz": 4200
+  },
+  {
+    "file": "02-paper-rustle.wav",
+    "source": "paper",
+    "trim_seconds": [
+      0.23,
+      0.65
+    ],
+    "duration_seconds": 0.42,
+    "peak_dbfs": -14.000000000058899,
+    "rms_dbfs": -35.20824348744632,
+    "lowpass_hz": 6500
+  },
+  {
+    "file": "03-dry-wood-tap.wav",
+    "source": "wood",
+    "trim_seconds": [
+      0.565,
+      0.925
+    ],
+    "duration_seconds": 0.36,
+    "peak_dbfs": -14.000000000113637,
+    "rms_dbfs": -33.43658026724452,
+    "lowpass_hz": 3500
+  }
+]
+
+QA: decoded successfully; signal level, durations, mono channel layout and fade boundaries checked. No clipping. Subjective audition still required; the available inspection tools cannot listen to audio.
+
+UI policy: opt-in quiet cues, persistent mute, suppression during microphone capture or recording playback. Do not delay capture for a sound effect. Show every state visually too.

@@ -1,0 +1,100 @@
+{
+  "checkedAtUtc": "2026-10-07T01:30:52.482374+00:00",
+  "images": {
+    "03-woven-notebook-brighter-v2.png": {
+      "size": [
+        1448,
+        1086
+      ],
+      "mode": "RGB",
+      "sha256": "783deb81209c454f9cffdd85d6488ccda30af8caf1db0e73b4c9be1dd8d9e731"
+    },
+    "jotterbook-adaptive-foreground.png": {
+      "size": [
+        1254,
+        1254
+      ],
+      "mode": "RGBA",
+      "sha256": "87cbd5cf54fef80274d25339067cc66203d66ee80fffbe60608e74d43a9da4f5",
+      "substantialAlphaBounds": [
+        340,
+        245,
+        926,
+        1012
+      ],
+      "nonzeroBoundsIncludeStrayPixels": [
+        91,
+        39,
+        1208,
+        1213
+      ]
+    },
+    "jotterbook-warm-woven-texture.png": {
+      "size": [
+        1254,
+        1254
+      ],
+      "mode": "RGB",
+      "sha256": "68a4bc265906fb6611c5c483f07bed70dd5f80d044751cd9205e57e120c2df44"
+    },
+    "jotterbook-cream-paper-grain.png": {
+      "size": [
+        1254,
+        1254
+      ],
+      "mode": "RGB",
+      "sha256": "7ec80bf5bc0f2fe31964d51757a9525fc27e7d6b5a113e0a5eb4cb1d1bdb1424"
+    }
+  },
+  "audio": {
+    "01-muted-ceramic-tap.mp3": {
+      "programs": [],
+      "stream_groups": [],
+      "streams": [
+        {
+          "codec_name": "mp3",
+          "sample_rate": "44100",
+          "channels": 1
+        }
+      ],
+      "format": {
+        "duration": "0.440000"
+      }
+    },
+    "02-paper-rustle.mp3": {
+      "programs": [],
+      "stream_groups": [],
+      "streams": [
+        {
+          "codec_name": "mp3",
+          "sample_rate": "44100",
+          "channels": 1
+        }
+      ],
+      "format": {
+        "duration": "0.420000"
+      }
+    },
+    "03-dry-wood-tap.mp3": {
+      "programs": [],
+      "stream_groups": [],
+      "streams": [
+        {
+          "codec_name": "mp3",
+          "sample_rate": "44100",
+          "channels": 1
+        }
+      ],
+      "format": {
+        "duration": "0.360000"
+      }
+    }
+  },
+  "sourceBoardActuallyInspected": true,
+  "texturesAndIconActuallyInspected": true,
+  "licenseSourcesVerifiedCC0": [
+    "https://freesound.org/people/OwlStorm/sounds/209014/",
+    "https://freesound.org/people/BenjaminNelan/sounds/353125/",
+    "https://freesound.org/people/kyles/sounds/452621/"
+  ]
+}

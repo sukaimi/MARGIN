@@ -11,6 +11,9 @@ public class RecorderService extends Service {
     private static final String TAG = "SecondBrainRecorder";
     public static final String ACTION_START = "ai.codeandcraft.secondbrain.START";
     public static final String ACTION_STOP = "ai.codeandcraft.secondbrain.STOP";
+    static final String EXTRA_STOP_REASON = "ai.codeandcraft.secondbrain.STOP_REASON";
+    private volatile boolean cleanupRequested;
+    private long captureRequestOwner;
     private static final int SAMPLE_RATE = 16000;
     private static final int BUFFER_SIZE = SAMPLE_RATE * 2 * 60; // 60 seconds
 
@@ -24,10 +27,14 @@ public class RecorderService extends Service {
     public static String getStatus() { return status; }
 
     private synchronized void startRecording() {
-        if (recording || "STARTING".equals(status) || "RECORDING".equals(status)) return;
+        if (AutoTranscription.cleanSlateRequested() || recording || "STARTING".equals(status) || "RECORDING".equals(status)) return;
         if (checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            RecordingStartGate.INSTANCE.fail(captureRequestOwner);
+            AutoTranscription.releaseCapture();
+            PopUi.capturePending = false;
             return;
         }
+        cleanupRequested = false;
         status = "STARTING";
         recording = true;
         
@@ -37,6 +44,7 @@ public class RecorderService extends Service {
             WavChunkWriter writer = null;
             SessionStore store = null;
             String completedId = null;
+            boolean hasAudio = false;
             try {
                 SessionStore.recoverInterrupted(getFilesDir());
                 store = SessionStore.create(getFilesDir(), SAMPLE_RATE);
@@ -48,16 +56,20 @@ public class RecorderService extends Service {
                 int minBufferSize = AudioRecord.getMinBufferSize(SAMPLE_RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT);
                 audioRecord = new AudioRecord(MediaRecorder.AudioSource.MIC, SAMPLE_RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, Math.max(minBufferSize, BUFFER_SIZE));
                 
-                if (audioRecord.getState() != AudioRecord.STATE_INITIALIZED) {
-                    throw new IOException("AudioRecord failed initialization");
+                // STOP and the final cancellation check share the microphone-start lock.
+                synchronized (RecorderService.this) {
+                    if (recording) {
+                        if (audioRecord.getState() != AudioRecord.STATE_INITIALIZED) {
+                            throw new IOException("AudioRecord failed initialization");
+                        }
+                        audioRecord.startRecording();
+                        status = "RECORDING";
+                        RecorderDiagnostics.log(this, "CAPTURE_STARTED");
+                        Log.i(TAG, "session_start");
+                    }
                 }
-                
-                if (!recording) return; // Check cancellation before AudioRecord.startRecording
 
-                audioRecord.startRecording();
-                status = "RECORDING";
-                Log.i(TAG, "session_start");
-
+                if (recording) {
                 writer = new WavChunkWriter(store.directory(), store.nextChunkIndex(), 16000);
                 long lastCheckpoint = SystemClock.elapsedRealtime();
                 long totalPayload = 0;
@@ -96,19 +108,25 @@ public class RecorderService extends Service {
                     }
                 }
 
+                hasAudio = writer.getPayloadBytes() > 0 || store.nextChunkIndex() > 1;
+                } // Cancelled initialization still uses normal zero-audio completion.
+
                 if (writer != null) {
                     writer.finish();
                 }
                 if (store != null) {
                     store.complete();
                     completedId = store.directory().getName();
-                    try { AutoTranscription.enqueueRecorded(this, completedId); }
+                    RecordingStartGate.INSTANCE.completed(captureRequestOwner, completedId);
+                    try { if (hasAudio) AutoTranscription.enqueueRecorded(this, completedId); }
                     catch (Exception queueError) { Log.e(TAG, "Saved audio; auto queue unavailable", queueError); }
                 }
                 status = "STOPPED";
+                RecorderDiagnostics.log(this, "CAPTURE_COMPLETED");
             } catch (Exception e) {
                 Log.e(TAG, "error", e);
                 status = "ERROR";
+                RecorderDiagnostics.log(this, "CAPTURE_ERROR");
                 if (writer != null) {
                     try { writer.close(); } catch (Exception ignored) {}
                 }
@@ -123,6 +141,7 @@ public class RecorderService extends Service {
                 cleanup();
                 try { AutoTranscription.captureReleased(this, completedId); AutoTranscription.kick(this); }
                 catch (Exception queueError) { Log.e(TAG, "Saved audio; queue release unavailable", queueError); }
+                finally { RecordingStartGate.INSTANCE.fail(captureRequestOwner); }
             }
         });
         recordingThread.start();
@@ -143,13 +162,16 @@ public class RecorderService extends Service {
             status = "IDLE";
         }
         stopForeground(Build.VERSION.SDK_INT >= Build.VERSION_CODES.N ? Service.STOP_FOREGROUND_REMOVE : Service.STOP_FOREGROUND_REMOVE);
+        cleanupRequested = true;
         stopSelf();
     }
 
     private void stopRecording() {
-        recording = false;
-        if (audioRecord != null) {
-            try { audioRecord.stop(); } catch (Exception ignored) {}
+        synchronized (this) {
+            recording = false;
+            if (audioRecord != null) {
+                try { audioRecord.stop(); } catch (Exception ignored) {}
+            }
         }
         if (recordingThread != null) {
             try { recordingThread.join(1000); } catch (InterruptedException ignored) {}
@@ -163,6 +185,7 @@ public class RecorderService extends Service {
         
         Intent stopIntent = new Intent(this, RecorderService.class);
         stopIntent.setAction(ACTION_STOP);
+        stopIntent.putExtra(EXTRA_STOP_REASON, "NOTIFICATION_STOP");
         PendingIntent stopPendingIntent = PendingIntent.getService(this, 0, stopIntent, PendingIntent.FLAG_IMMUTABLE);
 
         return new Notification.Builder(this, "recorder")
@@ -177,8 +200,21 @@ public class RecorderService extends Service {
         if (intent != null) {
             String action = intent.getAction();
             if (ACTION_START.equals(action)) {
-                startRecording();
+                if (!recording && !"STARTING".equals(status) && !"RECORDING".equals(status))
+                    captureRequestOwner = RecordingStartGate.INSTANCE.owner();
+                try { startRecording(); }
+                catch (RuntimeException failure) {
+                    status = "ERROR";
+                    cleanup();
+                    AutoTranscription.releaseCapture();
+                    PopUi.capturePending = false;
+                    RecordingStartGate.INSTANCE.fail(captureRequestOwner);
+                    throw failure;
+                }
             } else if (ACTION_STOP.equals(action)) {
+                String reason = null;
+                try { reason = intent.getStringExtra(EXTRA_STOP_REASON); } catch (Exception ignored) {}
+                RecorderDiagnostics.log(this, RecorderDiagnostics.stopReason(reason));
                 stopRecording();
             }
         }
@@ -188,5 +224,17 @@ public class RecorderService extends Service {
     @Override
     public IBinder onBind(Intent intent) { return null; }
     @Override
-    public void onDestroy() { stopRecording(); super.onDestroy(); }
+    public void onDestroy() {
+        String event = cleanupRequested && "ERROR".equals(status) ? "SERVICE_DESTROY_AFTER_ERROR"
+                : cleanupRequested && "STOPPED".equals(status) ? "SERVICE_DESTROY_AFTER_COMPLETION"
+                : recording || "STARTING".equals(status) || "RECORDING".equals(status)
+                ? "SERVICE_DESTROY_ACTIVE" : "SERVICE_DESTROY_INACTIVE";
+        RecorderDiagnostics.log(this, event);
+        stopRecording();
+        if (!cleanupRequested && RecordingStartGate.INSTANCE.fail(captureRequestOwner)) {
+            AutoTranscription.releaseCapture();
+            PopUi.capturePending = false;
+        }
+        super.onDestroy();
+    }
 }

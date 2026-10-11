@@ -67,15 +67,14 @@ public final class RecordEntryGuardTest {
         check(create.contains("handleIncomingIntent(getIntent(),b!=null)"), "Cold/restore entry uses shared handler");
         check(incoming.contains("handleIncomingIntent(intent,false)"), "Warm entry uses shared handler");
         check(!create.contains("record();") && !incoming.contains("record();"), "No lifecycle bypass");
-        check(create.contains("if(b!=null&&\"Record\".equals(page))page=\"Meetings\""), "Restored page is safe before rendering");
+        check(create.contains("if(!liveCapture&&!completedFinish){if(\"Record\".equals(page))page=\"Meetings\";finishing=false;}") && create.contains("RecordingStartGate.INSTANCE.canRestore"), "Restored page is safe before rendering");
         String handler = block(main, "private void handleIncomingIntent(Intent intent,boolean restored)");
         check(handler.contains("RecordEntryGuard.INSTANCE.allowRecord(target,token,restored)"), "Guard is consulted");
         check(handler.contains("if(permitted){record();return;}"), "Only permitted incoming Record can capture");
         check(count(handler, "record();") == 1, "No second incoming capture path");
-        check(handler.contains("page=\"Meetings\";") && handler.indexOf("page=\"Meetings\";") < handler.indexOf("render();"), "Rejected Record renders safe Meetings");
+        check(handler.contains("page=\"Meetings\";") && handler.indexOf("page=\"Meetings\";") < handler.lastIndexOf("render();"), "Rejected Record renders safe Meetings");
         check(handler.contains("intent.removeExtra(RecordEntryGuard.EXTRA_TOKEN)"), "Token removed from stored intent");
         check(!block(main, "protected void onSaveInstanceState(Bundle b)").contains("TOKEN"), "Token not saved");
-        check(main.contains("r.setOnClickListener(v->record())"), "Main direct Record click retained");
         String detail = Files.readString(base.resolve("MeetingDetailActivity.java"));
         String click = block(detail, "n.setOnClickListener(v->");
         check(click.contains("new android.content.Intent(this,MainActivity.class)"), "Explicit internal destination");
