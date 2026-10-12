@@ -44,7 +44,9 @@ public class MeetingDetailActivity extends Activity {
     private static ExecutorService newDetailWorker(){ExecutorService worker=Executors.newSingleThreadExecutor();detailWorkers.add(worker);return worker;}
     static boolean hasOpenWork(){detailWorkers.removeIf(ExecutorService::isTerminated);return !detailWorkers.isEmpty();}
     private final ExecutorService loader = newDetailWorker();
-    private boolean visible;
+    private void submitWork(Runnable task){if(!deleting&&!AutoTranscription.cleanSlateRequested()&&!loader.isShutdown())loader.execute(task);}
+    private boolean otherMeetingWork(){detailWorkers.removeIf(ExecutorService::isTerminated);for(ExecutorService worker:detailWorkers)if(worker!=loader)return true;return false;}
+    private boolean visible,deleting;
     volatile boolean loaded;
     volatile String loadError;
     final ArrayList<Clip> clips = new ArrayList<>();
@@ -98,7 +100,7 @@ public class MeetingDetailActivity extends Activity {
         briefTab.setOnClickListener(v->{PopUi.feedback(v,"tab");selectTab("Brief");});notesTab.setOnClickListener(v->{PopUi.feedback(v,"tab");selectTab("Tasks");});transcriptTab.setOnClickListener(v->{PopUi.feedback(v,"tab");selectTab("Transcript");});
         android.widget.FrameLayout body=new android.widget.FrameLayout(this);flow.addView(body,new LinearLayout.LayoutParams(-1,-2));transcriptPane=column();notesPane=column();optionsPane=column();briefPane=column();tasksPane=column();briefScroll=pane(body,briefPane);transcriptScroll=pane(body,transcriptPane);notesScroll=pane(body,notesPane);optionsScroll=pane(body,optionsPane);tasksScroll=pane(body,tasksPane);updatePanels();
         LinearLayout nav=new LinearLayout(this);nav.setBackground(NotebookSurface.cloth(this));for(String name:new String[]{"Meetings","Record","Tasks"}){Button n=NotebookNav.button(this,name,name,"Tasks".equals(name)?"Tasks".equals(selectedTab):"Meetings".equals(name)&&!"Tasks".equals(selectedTab));if("Meetings".equals(name))bottomMeetings=n;if("Tasks".equals(name))bottomTasks=n;n.setOnClickListener(v->{if("Tasks".equals(name)){PopUi.feedback(v,"tab");selectTab("Tasks");}else{android.content.Intent intent=new android.content.Intent(this,MainActivity.class);intent.putExtra("popPage",name);if("Record".equals(name))intent.putExtra(RecordEntryGuard.EXTRA_TOKEN,RecordEntryGuard.INSTANCE.issueFromDetailClick());intent.addFlags(android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP);startActivity(intent);}});nav.addView(n,new LinearLayout.LayoutParams(0,-2,1));}shell.addView(nav);
-        loader.execute(() -> {
+        submitWork(() -> {
             try {
                 File directory = sessionDirectory(getIntent().getStringExtra("sessionId"));
                 meetingDirectory=directory;
@@ -127,8 +129,8 @@ public class MeetingDetailActivity extends Activity {
                     }
                     found.add(clip);
                 }
-                handler.post(() -> { if(isDestroyed())return;clips.addAll(found); render(session);loaded=true; });
-            } catch(Exception error) { handler.post(() -> { if(isDestroyed())return;loadError=error.getMessage();playerStatus.setText("Meeting unavailable: "+loadError);Button retry=button("Reload meeting");retry.setOnClickListener(v->recreate());content.addView(retry);loaded=true; }); }
+                handler.post(() -> { if(isDestroyed()||deleting)return;clips.addAll(found); render(session);loaded=true; });
+            } catch(Exception error) { handler.post(() -> { if(isDestroyed()||deleting)return;loadError=error.getMessage();playerStatus.setText("Meeting unavailable: "+loadError);Button retry=button("Reload meeting");retry.setOnClickListener(v->recreate());content.addView(retry);loaded=true; }); }
         });
     }
     private void render(JSONObject session) {
@@ -160,10 +162,10 @@ public class MeetingDetailActivity extends Activity {
         refreshManualSection(clip,box);
     }
     private void refreshManualSection(Clip clip,LinearLayout box) {
-        loader.execute(()->{
+        submitWork(()->{
             try {
                 JSONObject overlay=ManualSpeakerCorrections.load(meetingDirectory);
-                handler.post(()->{if(isDestroyed())return;box.removeAllViews();box.addView(text("Manual speaker labels",20));
+                handler.post(()->{if(isDestroyed()||deleting)return;box.removeAllViews();box.addView(text("Manual speaker labels",20));
                     box.addView(text("Labels are supplied by you. They are not speaker recognition or word-aligned attribution.",16));
                     JSONArray heads=overlay.optJSONArray("effective"),history=overlay.optJSONArray("history");boolean any=false;
                     if(heads!=null)for(int i=0;i<heads.length();i++){
@@ -183,7 +185,7 @@ public class MeetingDetailActivity extends Activity {
                     }
                     manualSectionsLoaded++;
                 });
-            }catch(Exception error){handler.post(()->{if(isDestroyed())return;box.removeAllViews();box.addView(text("Manual labels unavailable: "+error.getMessage(),18));Button retry=button("Retry manual labels");retry.setOnClickListener(v->refreshManualSection(clip,box));box.addView(retry);manualSectionsLoaded++;});}
+            }catch(Exception error){handler.post(()->{if(isDestroyed()||deleting)return;box.removeAllViews();box.addView(text("Manual labels unavailable: "+error.getMessage(),18));Button retry=button("Retry manual labels");retry.setOnClickListener(v->refreshManualSection(clip,box));box.addView(retry);manualSectionsLoaded++;});}
         });
     }
     private void manualDialog(Clip clip,JSONObject prior,LinearLayout box) {
@@ -205,10 +207,10 @@ public class MeetingDetailActivity extends Activity {
     }
     void saveManual(Clip clip,long start,long end,String label,String prior,String original,LinearLayout box) {
         manualSaveError=null;
-        loader.execute(()->{
+        submitWork(()->{
             try{ManualSpeakerCorrections.append(meetingDirectory,UUID.randomUUID().toString(),clip.name,clip.sha,start,end,label,prior,original);
-                handler.post(()->{if(!isDestroyed())refreshManualSection(clip,box);});
-            }catch(Exception error){manualSaveError=error.getMessage();handler.post(()->{if(!isDestroyed())box.addView(text("Manual correction was not saved: "+error.getMessage(),18));});}
+                handler.post(()->{if(!isDestroyed()&&!deleting)refreshManualSection(clip,box);});
+            }catch(Exception error){manualSaveError=error.getMessage();handler.post(()->{if(!isDestroyed()&&!deleting)box.addView(text("Manual correction was not saved: "+error.getMessage(),18));});}
         });
     }
     private ScrollView wrapManualForm(LinearLayout form){ScrollView scroll=new ScrollView(this);scroll.addView(form);return scroll;}
@@ -233,7 +235,7 @@ public class MeetingDetailActivity extends Activity {
     private final Runnable queuePoll=new Runnable(){public void run(){if(!visible)return;if(meetingDirectory!=null&&transcriptionBox!=null)refreshTranscription();handler.postDelayed(this,1000);}};
     private void refreshTranscription() {
         if(transcriptionRefreshBusy)return;transcriptionRefreshBusy=true;
-        loader.execute(()->{JSONObject result=null,queue=null;String failure=null;
+        submitWork(()->{JSONObject result=null,queue=null;String failure=null;
             try{queue=AutoTranscription.status(this,meetingDirectory.getName());
                 String state=queue==null?"":queue.optString("status");
                 if(!state.isEmpty()&&state.equals(lastQueueStatus)){handler.post(()->transcriptionRefreshBusy=false);return;}
@@ -241,7 +243,7 @@ public class MeetingDetailActivity extends Activity {
                 if(!"RUNNING".equals(state)&&!"QUEUED".equals(state))result=WindowedTranscription.inspect(this,meetingDirectory);
             }catch(Exception e){failure=e.getMessage();}
             final JSONObject r=result,q=queue;final String e=failure;
-            handler.post(()->{transcriptionRefreshBusy=false;if(isDestroyed())return;
+            handler.post(()->{transcriptionRefreshBusy=false;if(isDestroyed()||deleting)return;
                 String state=e!=null?"ERROR":q==null?(r==null?"NOT_STARTED":r.optString("status")):q.optString("status");
                 if(state.equals(lastQueueStatus)&&q!=null)return;lastQueueStatus=state;
                 transcriptionResult=r;transcriptionState=state;transcriptionError=e!=null?e:q==null?null:q.optString("error");
@@ -260,7 +262,7 @@ public class MeetingDetailActivity extends Activity {
     }
     void startTranscription(int budget) {
         if(meetingDirectory==null||AutoTranscription.blocked())return;
-        loader.execute(()->{try{AutoTranscription.manual(this,meetingDirectory.getName());AutoTranscription.kick(this);handler.post(()->{lastQueueStatus="";refreshTranscription();});}catch(Exception e){handler.post(()->{transcriptionError=e.getMessage();transcriptionState="ERROR";renderTranscriptionError();});}});
+        submitWork(()->{try{AutoTranscription.manual(this,meetingDirectory.getName());AutoTranscription.kick(this);handler.post(()->{lastQueueStatus="";refreshTranscription();});}catch(Exception e){handler.post(()->{transcriptionError=e.getMessage();transcriptionState="ERROR";renderTranscriptionError();});}});
     }
     private void renderTranscriptionError(){transcriptionBox.removeAllViews();transcriptionBox.addView(text("Local transcription unavailable: "+transcriptionError+". Accepted windows remain saved; retry after resolving the error.",18));}
     private void renderTranscription(JSONObject result) {
@@ -296,11 +298,11 @@ public class MeetingDetailActivity extends Activity {
     private String briefParent(){return briefVersions.length()==0?null:briefVersions.optJSONObject(briefVersions.length()-1).optString("versionId");}
     private void refreshBrief(){
         briefBusy=true;renderBrief();
-        loader.execute(()->{long begin=android.os.SystemClock.elapsedRealtime();try{
+        submitWork(()->{long begin=android.os.SystemClock.elapsedRealtime();try{
             JSONArray versions=MeetingBriefStore.load(this,meetingDirectory);
             BriefDiagnostics.record(this,"LOAD",android.os.SystemClock.elapsedRealtime()-begin,"OK");
-            handler.post(()->{if(isDestroyed())return;briefVersions=versions;currentBrief=versions.length()==0?null:versions.optJSONObject(versions.length()-1);briefLoaded=true;briefBusy=false;briefNotice="";renderBrief();});
-        }catch(Exception error){BriefDiagnostics.record(this,"LOAD",android.os.SystemClock.elapsedRealtime()-begin,"INVALID");handler.post(()->{if(isDestroyed())return;briefLoaded=false;briefBusy=false;briefNotice="Saved brief could not be validated. Previous files are retained. Reload after resolving evidence or storage issues.";renderBrief();});}});
+            handler.post(()->{if(isDestroyed()||deleting)return;briefVersions=versions;currentBrief=versions.length()==0?null:versions.optJSONObject(versions.length()-1);briefLoaded=true;briefBusy=false;briefNotice="";renderBrief();});
+        }catch(Exception error){BriefDiagnostics.record(this,"LOAD",android.os.SystemClock.elapsedRealtime()-begin,"INVALID");handler.post(()->{if(isDestroyed()||deleting)return;briefLoaded=false;briefBusy=false;briefNotice="Saved brief could not be validated. Previous files are retained. Reload after resolving evidence or storage issues.";renderBrief();});}});
     }
     private void renderBrief(){
         if(briefPane==null)return;briefPane.removeAllViews();briefPane.addView(text("At a glance",26));briefPane.addView(text("Unverified draft · Check against the source before sharing. AI uses partial snippets and may be wrong.",18));if(!briefNotice.isEmpty())briefPane.addView(text(briefNotice,18));
@@ -383,20 +385,20 @@ public class MeetingDetailActivity extends Activity {
         briefBusy=true;synchronized(briefCancel){briefCancel.set(false);}final String parent=briefParent();
         final boolean ai=SmolBriefEngine.ID.equals(provider.id());
         briefNotice=ai?"Preparing experimental AI draft locally… May take up to 3 minutes. Partial snippets only; previous revisions retained.":"Preparing source draft locally… Previous revisions retained.";renderBrief();
-        loader.execute(()->{long begin=android.os.SystemClock.elapsedRealtime();String status="FAILED";try{
+        submitWork(()->{long begin=android.os.SystemClock.elapsedRealtime();String status="FAILED";try{
             JSONObject draft=MeetingBriefEngine.generate(provider,this,meetingDirectory,briefCancel);
             status=draft.optString("status");
             if(!"DRAFT".equals(status))throw new IOException("UNAVAILABLE");
             MeetingBriefStore.append(this,meetingDirectory,draft,parent,briefCancel);
             BriefDiagnostics.record(this,"GENERATE",android.os.SystemClock.elapsedRealtime()-begin,"OK",provider.id());
-            handler.post(()->{if(isDestroyed())return;refreshBrief();});
+            handler.post(()->{if(isDestroyed()||deleting)return;refreshBrief();});
         }catch(Exception error){
             final boolean cancelled=briefCancel.get()||"BRIEF_CANCELLED".equals(error.getMessage())||"CANCELLED".equals(status);
             // Match fixed codes only; never display exception contents.
             if("BRIEF_UNAVAILABLE".equals(error.getMessage()))status="RECORDING";
             final String failure=cancelled?"Cancelled. Previous revisions retained.":"RECORDING".equals(status)?"Recording blocks draft generation. Previous revisions retained.":briefFailure(status)+" Previous revisions retained."+(ai?" Use Create source draft as a fallback.":"");
             BriefDiagnostics.record(this,"GENERATE",android.os.SystemClock.elapsedRealtime()-begin,cancelled?"CANCELLED":"UNAVAILABLE",provider.id());
-            handler.post(()->{if(isDestroyed())return;briefBusy=false;briefNotice=failure;renderBrief();});}});
+            handler.post(()->{if(isDestroyed()||deleting)return;briefBusy=false;briefNotice=failure;renderBrief();});}});
     }
     private void briefEdit(String section,int index){
         try{
@@ -426,10 +428,10 @@ public class MeetingDetailActivity extends Activity {
     }
     private void saveBriefEdit(JSONObject draft){
         if(briefBusy)return;final long soundGeneration=PopUi.soundGeneration();String parent=briefParent();briefBusy=true;synchronized(briefCancel){briefCancel.set(false);}briefNotice="Saving a new revision…";renderBrief();
-        loader.execute(()->{long begin=android.os.SystemClock.elapsedRealtime();try{MeetingBriefStore.append(this,meetingDirectory,draft,parent,briefCancel);BriefDiagnostics.record(this,"EDIT",android.os.SystemClock.elapsedRealtime()-begin,"OK");handler.post(()->{if(isDestroyed())return;if(visible&&PopUi.soundCurrent(soundGeneration))PopUi.feedback(briefTab,"save");Toast.makeText(this,"Changes saved as a new revision",Toast.LENGTH_SHORT).show();refreshBrief();});}catch(Exception error){BriefDiagnostics.record(this,"EDIT",android.os.SystemClock.elapsedRealtime()-begin,briefCancel.get()?"CANCELLED":"INVALID");handler.post(()->{if(isDestroyed())return;briefBusy=false;briefNotice="Save could not be confirmed. Previous revisions retained. Reload and check evidence before retrying.";renderBrief();});}});
+        submitWork(()->{long begin=android.os.SystemClock.elapsedRealtime();try{MeetingBriefStore.append(this,meetingDirectory,draft,parent,briefCancel);BriefDiagnostics.record(this,"EDIT",android.os.SystemClock.elapsedRealtime()-begin,"OK");handler.post(()->{if(isDestroyed()||deleting)return;if(visible&&PopUi.soundCurrent(soundGeneration))PopUi.feedback(briefTab,"save");Toast.makeText(this,"Changes saved as a new revision",Toast.LENGTH_SHORT).show();refreshBrief();});}catch(Exception error){BriefDiagnostics.record(this,"EDIT",android.os.SystemClock.elapsedRealtime()-begin,briefCancel.get()?"CANCELLED":"INVALID");handler.post(()->{if(isDestroyed()||deleting)return;briefBusy=false;briefNotice="Save could not be confirmed. Previous revisions retained. Reload and check evidence before retrying.";renderBrief();});}});
     }
     private void showBriefSource(JSONObject citation){
-        loader.execute(()->{try{MeetingBriefStore.load(this,meetingDirectory);JSONObject sourceJob=WindowedTranscription.inspectJob(this,meetingDirectory,citation.getJSONObject("anchor").getString("jobId"));JSONArray parts=citation.getJSONObject("anchor").getJSONObject("window").getJSONArray("sourceParts");handler.post(()->{if(isDestroyed())return;LinearLayout box=column();box.setPadding(dp(24),0,dp(24),dp(24));box.addView(text(sourceJob.optBoolean("historical")?"Earlier saved transcript · Speaker unknown":"Saved transcript · Speaker unknown",18));TextView quote=text(citation.optString("quote"),21);quote.setTextIsSelectable(true);quote.setBackground(controlShape(0xFFE9EDFF,0xFF244ACB,1));box.addView(quote);box.addView(text("Audio links cover saved source windows. Word timings and claims remain unverified.",18));android.app.AlertDialog dialog=new android.app.AlertDialog.Builder(this).setTitle("Source excerpt").setView(wrapManualForm(box)).setPositiveButton("Close",null).create();for(int i=0;i<parts.length();i++){JSONObject part=parts.optJSONObject(i);Clip clip=findClip(part.optString("chunkFilename"));long base=clip==null?0:clip.sessionStart;Button play=button("Play from "+clock(base+part.optLong("startSample")/16)+" · to "+clock(base+part.optLong("endSample")/16));play.setOnClickListener(v->{playExcerptSource(part,false);briefSourceEndMs=part.optLong("endSample")/16;dialog.dismiss();});box.addView(play);}dialog.show();});}catch(Exception error){handler.post(()->{if(!isDestroyed()){briefNotice="Source no longer validates. Reload evidence before playback.";renderBrief();}});}});
+        submitWork(()->{try{MeetingBriefStore.load(this,meetingDirectory);JSONObject sourceJob=WindowedTranscription.inspectJob(this,meetingDirectory,citation.getJSONObject("anchor").getString("jobId"));JSONArray parts=citation.getJSONObject("anchor").getJSONObject("window").getJSONArray("sourceParts");handler.post(()->{if(isDestroyed()||deleting)return;LinearLayout box=column();box.setPadding(dp(24),0,dp(24),dp(24));box.addView(text(sourceJob.optBoolean("historical")?"Earlier saved transcript · Speaker unknown":"Saved transcript · Speaker unknown",18));TextView quote=text(citation.optString("quote"),21);quote.setTextIsSelectable(true);quote.setBackground(controlShape(0xFFE9EDFF,0xFF244ACB,1));box.addView(quote);box.addView(text("Audio links cover saved source windows. Word timings and claims remain unverified.",18));android.app.AlertDialog dialog=new android.app.AlertDialog.Builder(this).setTitle("Source excerpt").setView(wrapManualForm(box)).setPositiveButton("Close",null).create();for(int i=0;i<parts.length();i++){JSONObject part=parts.optJSONObject(i);Clip clip=findClip(part.optString("chunkFilename"));long base=clip==null?0:clip.sessionStart;Button play=button("Play from "+clock(base+part.optLong("startSample")/16)+" · to "+clock(base+part.optLong("endSample")/16));play.setOnClickListener(v->{playExcerptSource(part,false);briefSourceEndMs=part.optLong("endSample")/16;dialog.dismiss();});box.addView(play);}dialog.show();});}catch(Exception error){handler.post(()->{if(!isDestroyed()&&!deleting){briefNotice="Source no longer validates. Reload evidence before playback.";renderBrief();}});}});
     }
 
     volatile String excerptState="LOADING";
@@ -438,7 +440,7 @@ public class MeetingDetailActivity extends Activity {
     private final java.util.concurrent.atomic.AtomicBoolean excerptCancel=new java.util.concurrent.atomic.AtomicBoolean();
     final ArrayList<Button> excerptSourceButtons=new ArrayList<>();
     void refreshExcerpts(){if("RUNNING".equals(excerptState))return;excerptCancel.set(false);excerptState="RUNNING";excerptBox.removeAllViews();excerptBox.addView(text("Source excerpts · extractive",24));excerptBox.addView(text("Checking immutable transcript evidence locally…",18));Button cancel=button("Cancel excerpt refresh");cancel.setOnClickListener(v->{excerptCancel.set(true);cancel.setEnabled(false);excerptBox.addView(text("Cancellation requested; finishing the current bounded evidence check.",18));});excerptBox.addView(cancel);
-        loader.execute(()->{try{JSONObject result=EvidenceExcerptBaseline.build(this,meetingDirectory,8,5000,excerptCancel);handler.post(()->{if(isDestroyed())return;excerptResult=result;excerptState=result.optString("status");renderExcerpts(result);});}catch(Exception error){handler.post(()->{if(isDestroyed())return;excerptState="ERROR";excerptBox.removeAllViews();excerptBox.addView(text("Source excerpts unavailable: "+error.getMessage(),18));Button retry=button("Retry source excerpts");retry.setOnClickListener(v->refreshExcerpts());excerptBox.addView(retry);});}});
+        submitWork(()->{try{JSONObject result=EvidenceExcerptBaseline.build(this,meetingDirectory,8,5000,excerptCancel);handler.post(()->{if(isDestroyed()||deleting)return;excerptResult=result;excerptState=result.optString("status");renderExcerpts(result);});}catch(Exception error){handler.post(()->{if(isDestroyed()||deleting)return;excerptState="ERROR";excerptBox.removeAllViews();excerptBox.addView(text("Source excerpts unavailable: "+error.getMessage(),18));Button retry=button("Retry source excerpts");retry.setOnClickListener(v->refreshExcerpts());excerptBox.addView(retry);});}});
     }
     private void renderExcerpts(JSONObject result){excerptBox.removeAllViews();excerptSourceButtons.clear();excerptBox.addView(text("Source excerpts · extractive",24));excerptBox.addView(text("Exact transcript quotations ranked locally. These are not an abstractive summary, verified decisions or action items. Owners, dates and contradictions have not been evaluated.",18));excerptBox.addView(text("Saved evidence quotations. Audio links cover source windows; individual word timings are unavailable.",16));
         excerptBox.addView(text(result.optString("status")+" · "+result.optString("detail"),18));
@@ -447,36 +449,36 @@ public class MeetingDetailActivity extends Activity {
     }
     void playExcerptSource(JSONObject part,boolean muted){Clip clip=findClip(part.optString("chunkFilename"));if(clip==null||clip.sha==null||!clip.sha.equals(part.optString("parentSourceSha256"))){playerStatus.setText("Excerpt source could not be verified. Refresh this meeting before playback.");return;}playClip(clip,muted,part.optLong("startSample")/16);}
 
-    private void refreshNotes(){loader.execute(()->{try{JSONArray notes=EvidenceNoteStore.load(meetingDirectory);handler.post(()->{if(isDestroyed())return;notesBox.removeAllViews();notesBox.addView(text("Your notes",24));notesBox.addView(text("User-authored notes. Audio references do not verify your claims or align individual words.",16));
+    private void refreshNotes(){submitWork(()->{try{JSONArray notes=EvidenceNoteStore.load(meetingDirectory);handler.post(()->{if(isDestroyed()||deleting)return;notesBox.removeAllViews();notesBox.addView(text("Your notes",24));notesBox.addView(text("User-authored notes. Audio references do not verify your claims or align individual words.",16));
                 if(notes.length()==0)notesBox.addView(text("No user notes yet.",18));
                 for(int i=0;i<notes.length();i++){JSONObject note=notes.optJSONObject(i),source=note.optJSONObject("source");TextView body=text("User-authored: "+note.optString("text"),18);body.setTextIsSelectable(true);notesBox.addView(body);notesBox.addView(text("Source audio · "+clock(source.optLong("startMs"))+"–"+clock(source.optLong("endMs")),16));Clip clip=findClip(source.optString("chunkFilename"));if(clip!=null){Button play=button("Play note source from "+clock(source.optLong("startMs")));play.setOnClickListener(v->playClip(clip,false,source.optLong("startMs")));notesBox.addView(play);}}
                 for(Clip clip:clips){Button add=button("Add your source note · part "+(clips.indexOf(clip)+1));add.setEnabled(clip.sha!=null);add.setOnClickListener(v->noteDialog(clip));notesBox.addView(add);}notesLoaded++;refreshExcerpts();restorePanePosition();
-            });}catch(Exception error){handler.post(()->{if(isDestroyed())return;notesBox.removeAllViews();notesBox.addView(text("User notes unavailable: "+error.getMessage(),18));Button retry=button("Retry user notes");retry.setOnClickListener(v->refreshNotes());notesBox.addView(retry);notesLoaded++;});}});}
+            });}catch(Exception error){handler.post(()->{if(isDestroyed()||deleting)return;notesBox.removeAllViews();notesBox.addView(text("User notes unavailable: "+error.getMessage(),18));Button retry=button("Retry user notes");retry.setOnClickListener(v->refreshNotes());notesBox.addView(retry);notesLoaded++;});}});}
     private void noteDialog(Clip clip){LinearLayout form=new LinearLayout(this);form.setOrientation(LinearLayout.VERTICAL);form.setPadding(dp(20),dp(8),dp(20),dp(8));form.addView(text("Your own note linked to an exact audio range in "+clip.name+". Automatic outputs are not generated.",18));
         EditText body=new EditText(this);body.setTextSize(18);body.setMinHeight(dp(96));body.setHint("Your note");body.setContentDescription("User-authored note");form.addView(body);
         EditText from=rangeInput(form,"Start in milliseconds",0),to=rangeInput(form,"End in milliseconds",clip.duration);TextView error=text("",18);form.addView(error);
         android.app.AlertDialog dialog=new android.app.AlertDialog.Builder(this).setTitle("Add your note").setView(wrapManualForm(form)).setNegativeButton("Cancel",null).setPositiveButton("Save user note",null).create();dialog.setOnShowListener(ignored->{dialog.getButton(-1).setMinHeight(dp(48));dialog.getButton(-1).setOnClickListener(v->{try{long a=Long.parseLong(from.getText().toString()),b=Long.parseLong(to.getText().toString());String value=body.getText().toString();if(value.trim().isEmpty()||value.codePointCount(0,value.length())>2000)throw new IOException("Supply a note of 1–2000 characters.");if(a<0||a>=b||b>clip.duration)throw new IOException("Range must stay within 0–"+clip.duration+" ms.");saveNote(clip,a,b,value);dialog.dismiss();}catch(Exception failure){error.setText(failure.getMessage());}});});dialog.show();
     }
     private EditText rangeInput(LinearLayout form,String title,long value){form.addView(text(title,16));EditText input=new EditText(this);input.setTextSize(18);input.setMinHeight(dp(48));input.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);input.setContentDescription(title);input.setText(String.valueOf(value));form.addView(input);return input;}
-    void saveNote(Clip clip,long start,long end,String value){noteSaveError=null;loader.execute(()->{try{EvidenceNoteStore.append(meetingDirectory,UUID.randomUUID().toString(),clip.name,clip.sha,start,end,value,null,null);handler.post(()->{if(!isDestroyed())refreshNotes();});}catch(Exception error){noteSaveError=error.getMessage();handler.post(()->{if(!isDestroyed())notesBox.addView(text("Your note was not saved: "+error.getMessage(),18));});}});}
+    void saveNote(Clip clip,long start,long end,String value){noteSaveError=null;submitWork(()->{try{EvidenceNoteStore.append(meetingDirectory,UUID.randomUUID().toString(),clip.name,clip.sha,start,end,value,null,null);handler.post(()->{if(!isDestroyed()&&!deleting)refreshNotes();});}catch(Exception error){noteSaveError=error.getMessage();handler.post(()->{if(!isDestroyed()&&!deleting)notesBox.addView(text("Your note was not saved: "+error.getMessage(),18));});}});}
 
 
     private void addExportSection(){exportStatus=text("",18);optionsPane.addView(exportStatus);exportButton=PopUi.iconButton(this,MarginIconButton.Icon.EXPORT,"Export meeting",false);exportButton.setLayoutParams(new LinearLayout.LayoutParams(dp(48),dp(48)));exportButton.setOnClickListener(v->showExportSheet());optionsPane.addView(exportButton);saveBundleButton=button("Export meeting");saveBundleButton.setVisibility(android.view.View.GONE);optionsPane.addView(saveBundleButton);}
     private void showExportSheet(){if(meetingDirectory==null){Toast.makeText(this,"Meeting is still loading",Toast.LENGTH_SHORT).show();return;}final String[] kinds={"notes","transcript","audio","everything"};final String[] labels={"Notes\nSummary and action items · Text file","Transcript\nThe conversation, with timestamps · Text file","Audio\nOriginal recording · Audio file","Everything\nNotes, transcript and audio in one ZIP file"};final int[] choice={0};android.app.AlertDialog dialog=new android.app.AlertDialog.Builder(this).setTitle("Export meeting").setSingleChoiceItems(labels,0,(d,w)->{choice[0]=w;((android.app.AlertDialog)d).getButton(-1).setText("Export "+kinds[w]);}).setNegativeButton("Cancel",null).setPositiveButton("Export notes",(d,w)->prepareExport(kinds[choice[0]])).create();dialog.show();}
-    private void prepareExport(String kind){if("RUNNING".equals(exportState))return;exportState="RUNNING";exportStatus.setText("Preparing "+kind+" for local export…");Toast.makeText(this,"Preparing local export…",Toast.LENGTH_SHORT).show();loader.execute(()->{try{JSONObject result=MeetingExport.prepare(this,meetingDirectory,kind,new java.util.concurrent.atomic.AtomicBoolean());handler.post(()->{if(isDestroyed())return;exportResult=result;exportState="READY";try{android.content.Intent intent=new android.content.Intent(android.content.Intent.ACTION_CREATE_DOCUMENT);intent.addCategory(android.content.Intent.CATEGORY_OPENABLE);intent.setType(result.getString("mimeType"));intent.putExtra(android.content.Intent.EXTRA_TITLE,result.getString("displayName"));startActivityForResult(intent,SAVE_BUNDLE);}catch(Exception e){exportStatus.setText("Local save could not open.");Toast.makeText(this,"Local save could not open",Toast.LENGTH_LONG).show();}});}catch(Exception e){handler.post(()->{if(isDestroyed())return;exportState="ERROR";exportStatus.setText("Export unavailable. Saved source could not be prepared.");Toast.makeText(this,"Export unavailable. Saved source could not be prepared.",Toast.LENGTH_LONG).show();});}});}
-    void createSourceBundle(){if("RUNNING".equals(exportState))return;exportState="RUNNING";exportError=null;exportButton.setEnabled(false);saveBundleButton.setEnabled(false);exportStatus.setText("Checking evidence and preparing a local bundle…");loader.execute(()->{try{JSONObject result=SourceBundle.create(this,meetingDirectory,null);handler.post(()->{if(isDestroyed())return;exportResult=result;exportState="READY";exportButton.setEnabled(true);saveBundleButton.setEnabled(true);exportStatus.setText("Source bundle prepared · "+result.optInt("entryCount")+" evidence files · "+result.optLong("bytes")+" bytes. Original evidence retained.");});}catch(Exception error){handler.post(()->{if(isDestroyed())return;exportState="ERROR";exportError=error.getMessage();exportButton.setEnabled(true);exportStatus.setText("Source bundle unavailable: "+exportError+". Resolve the error and retry; original evidence retained.");});}});}
+    private void prepareExport(String kind){if("RUNNING".equals(exportState))return;exportState="RUNNING";exportStatus.setText("Preparing "+kind+" for local export…");Toast.makeText(this,"Preparing local export…",Toast.LENGTH_SHORT).show();submitWork(()->{try{JSONObject result=MeetingExport.prepare(this,meetingDirectory,kind,new java.util.concurrent.atomic.AtomicBoolean());handler.post(()->{if(isDestroyed()||deleting)return;exportResult=result;exportState="READY";try{android.content.Intent intent=new android.content.Intent(android.content.Intent.ACTION_CREATE_DOCUMENT);intent.addCategory(android.content.Intent.CATEGORY_OPENABLE);intent.setType(result.getString("mimeType"));intent.putExtra(android.content.Intent.EXTRA_TITLE,result.getString("displayName"));startActivityForResult(intent,SAVE_BUNDLE);}catch(Exception e){exportStatus.setText("Local save could not open.");Toast.makeText(this,"Local save could not open",Toast.LENGTH_LONG).show();}});}catch(Exception e){handler.post(()->{if(isDestroyed()||deleting)return;exportState="ERROR";exportStatus.setText("Export unavailable. Saved source could not be prepared.");Toast.makeText(this,"Export unavailable. Saved source could not be prepared.",Toast.LENGTH_LONG).show();});}});}
+    void createSourceBundle(){if("RUNNING".equals(exportState))return;exportState="RUNNING";exportError=null;exportButton.setEnabled(false);saveBundleButton.setEnabled(false);exportStatus.setText("Checking evidence and preparing a local bundle…");submitWork(()->{try{JSONObject result=SourceBundle.create(this,meetingDirectory,null);handler.post(()->{if(isDestroyed()||deleting)return;exportResult=result;exportState="READY";exportButton.setEnabled(true);saveBundleButton.setEnabled(true);exportStatus.setText("Source bundle prepared · "+result.optInt("entryCount")+" evidence files · "+result.optLong("bytes")+" bytes. Original evidence retained.");});}catch(Exception error){handler.post(()->{if(isDestroyed()||deleting)return;exportState="ERROR";exportError=error.getMessage();exportButton.setEnabled(true);exportStatus.setText("Source bundle unavailable: "+exportError+". Resolve the error and retry; original evidence retained.");});}});}
     private boolean cleanupPreparedExport(JSONObject prepared){
         if(prepared==null)return true;
         try{
             if(!Arrays.asList("notes","transcript","audio","everything").contains(prepared.optString("kind")))return false;
             File exports=new File(getFilesDir().getCanonicalFile(),"exports").getAbsoluteFile(),file=new File(prepared.getString("file")).getAbsoluteFile();
-            String name=file.getName();
-            if(!exports.equals(exports.getCanonicalFile())||!file.equals(file.getCanonicalFile())||!exports.equals(file.getParentFile())||!name.matches("[a-f0-9-]{36}\\.(txt|wav|zip)")||!UUID.fromString(name.substring(0,36)).toString().equals(name.substring(0,36))||!file.isFile()||file.length()!=prepared.getLong("bytes")||!prepared.getString("sha256").equals(SourceBundle.sha(file)))return false;
+            String name=file.getName(),owner=SourceBundle.meetingId(meetingDirectory);
+            if(!exports.equals(exports.getCanonicalFile())||!file.equals(file.getCanonicalFile())||!exports.equals(file.getParentFile())||!name.matches("[a-f0-9-]{36}--[a-f0-9-]{36}\\.(txt|wav|zip)")||!name.startsWith(owner+"--")||!UUID.fromString(name.substring(38,74)).toString().equals(name.substring(38,74))||!file.isFile()||file.length()!=prepared.getLong("bytes")||!prepared.getString("sha256").equals(SourceBundle.sha(file)))return false;
             if(!file.delete())return false;
             return true;
         }catch(Exception error){return false;}
     }
-    @Override protected void onActivityResult(int request,int result,android.content.Intent data){super.onActivityResult(request,result,data);if(isFinishing()||AutoTranscription.cleanSlateRequested())return;if(request!=SAVE_BUNDLE)return;if(result==RESULT_CANCELED){boolean cleaned=cleanupPreparedExport(exportResult);if(cleaned){exportResult=null;exportState="NOT_STARTED";}exportStatus.setText(cleaned?"Local export cancelled.":"Local export cancelled. Prepared file remains available.");return;}if(result!=RESULT_OK||data==null){exportStatus.setText("Local save unavailable. Prepared file remains available.");return;}android.net.Uri uri=data.getData();if(!SourceBundle.localDocument(uri)){exportStatus.setText("Choose on-device Files or Downloads. Cloud and unknown providers are not supported; no audio was sent.");return;}if(exportResult==null){exportStatus.setText("Choose Export meeting to prepare a file.");return;}JSONObject prepared=exportResult;saveBundleButton.setEnabled(false);loader.execute(()->{try(OutputStream output=getContentResolver().openOutputStream(uri,"wt")){if(output==null)throw new IOException("No local output stream");SourceBundle.copyVerified(new File(prepared.getString("file")),prepared.getString("sha256"),output);}catch(Exception error){handler.post(()->{if(!isDestroyed()){exportStatus.setText("Local save failed: "+error.getMessage()+". Destination may be partial; prepared bundle and original evidence remain available.");saveBundleButton.setEnabled(true);}});return;}final boolean cleaned=cleanupPreparedExport(prepared);handler.post(()->{if(cleaned&&exportResult==prepared){exportResult=null;exportState="NOT_STARTED";}if(!isDestroyed()){exportStatus.setText(cleaned?"Export saved to your chosen on-device document.":"Export saved locally. Prepared file remains available.");Toast.makeText(this,"Export saved locally",Toast.LENGTH_LONG).show();saveBundleButton.setEnabled(true);}});});}
+    @Override protected void onActivityResult(int request,int result,android.content.Intent data){super.onActivityResult(request,result,data);if(isFinishing()||AutoTranscription.cleanSlateRequested())return;if(request!=SAVE_BUNDLE)return;if(result==RESULT_CANCELED){boolean cleaned=cleanupPreparedExport(exportResult);if(cleaned){exportResult=null;exportState="NOT_STARTED";}exportStatus.setText(cleaned?"Local export cancelled.":"Local export cancelled. Prepared file remains available.");return;}if(result!=RESULT_OK||data==null){exportStatus.setText("Local save unavailable. Prepared file remains available.");return;}android.net.Uri uri=data.getData();if(!SourceBundle.localDocument(uri)){exportStatus.setText("Choose on-device Files or Downloads. Cloud and unknown providers are not supported; no audio was sent.");return;}if(exportResult==null){exportStatus.setText("Choose Export meeting to prepare a file.");return;}JSONObject prepared=exportResult;saveBundleButton.setEnabled(false);submitWork(()->{try(OutputStream output=getContentResolver().openOutputStream(uri,"wt")){if(output==null)throw new IOException("No local output stream");SourceBundle.copyVerified(new File(prepared.getString("file")),prepared.getString("sha256"),output);}catch(Exception error){handler.post(()->{if(!isDestroyed()&&!deleting){exportStatus.setText("Local save failed: "+error.getMessage()+". Destination may be partial; prepared bundle and original evidence remain available.");saveBundleButton.setEnabled(true);}});return;}final boolean cleaned=cleanupPreparedExport(prepared);handler.post(()->{if(cleaned&&exportResult==prepared){exportResult=null;exportState="NOT_STARTED";}if(!isDestroyed()&&!deleting){exportStatus.setText(cleaned?"Export saved to your chosen on-device document.":"Export saved locally. Prepared file remains available.");Toast.makeText(this,"Export saved locally",Toast.LENGTH_LONG).show();saveBundleButton.setEnabled(true);}});});}
 
     void playClip(Clip clip,boolean muted,long target) {
         closePlayer();selectedClip=clip;pausedPosition=target;
@@ -505,12 +507,42 @@ public class MeetingDetailActivity extends Activity {
     String statusText(){return playerStatus.getText().toString();}
     @Override protected void onResume(){super.onResume();if(isFinishing()||AutoTranscription.cleanSlateRequested()){finish();return;}visible=true;PopUi.resumeSound(this);if(finishMarker.consume(UiSoundEngine.INSTANCE.muteEpoch()))UiSoundEngine.INSTANCE.play(this,"finish");AutoTranscription.kick(this);handler.removeCallbacks(queuePoll);handler.post(queuePoll);}
     @Override protected void onPause(){PopUi.pauseSound();visible=false;handler.removeCallbacks(queuePoll);closePlayer();saveViewPreferences();super.onPause();}
-    @Override protected void onDestroy(){synchronized(briefCancel){briefCancel.set(true);}excerptCancel.set(true);closePlayer();loader.shutdownNow();handler.removeCallbacksAndMessages(null);super.onDestroy();}
+    @Override protected void onDestroy(){synchronized(briefCancel){briefCancel.set(true);}excerptCancel.set(true);closePlayer();if(deleting)loader.shutdown();else loader.shutdownNow();handler.removeCallbacksAndMessages(null);super.onDestroy();}
     private LinearLayout column(){LinearLayout v=new LinearLayout(this);v.setOrientation(LinearLayout.VERTICAL);return v;}
     private ScrollView pane(android.widget.FrameLayout parent,LinearLayout child){ScrollView v=new ScrollView(this);v.setFillViewport(true);child.setPadding(0,dp(8),0,dp(24));v.addView(child,new ScrollView.LayoutParams(-1,-2));parent.addView(v,new android.widget.FrameLayout.LayoutParams(-1,-2));return v;}
     private Button tab(String label){Button v=button(label);v.setBackgroundColor(PAPER);v.setMinHeight(dp(52));v.setMinimumHeight(dp(52));v.setPadding(dp(8),dp(8),dp(8),dp(8));return v;}
     void selectTab(String label){selectedTab="Summary".equals(label)||"Brief".equals(label)?"Brief":"Tasks".equals(label)?"Tasks":"Notes".equals(label)?"Notes":"Transcript";optionsOpen=false;updatePanels();restorePanePosition();}
-    void showOptions(){new android.app.AlertDialog.Builder(this).setTitle("Meeting options").setItems(new String[]{"Export meeting","Your source notes","Speaker labels and audio details","Previous draft history"},(d,w)->{if(w==0)showExportSheet();else if(w==1)selectTab("Notes");else if(w==2){optionsOpen=true;updatePanels();}else showBriefHistory();}).setNegativeButton("Cancel",null).show();}
+    void showOptions(){new android.app.AlertDialog.Builder(this).setTitle("Meeting options").setItems(new String[]{"Export meeting","Your source notes","Speaker labels and audio details","Previous draft history"},(d,w)->{if(w==0)showExportSheet();else if(w==1)selectTab("Notes");else if(w==2){optionsOpen=true;updatePanels();}else showBriefHistory();}).setNeutralButton("Delete meeting",(d,w)->confirmDeleteMeeting()).setNegativeButton("Cancel",null).show();}
+    private void confirmDeleteMeeting(){
+        if(deleting||meetingDirectory==null){Toast.makeText(this,"Wait for the meeting to load.",Toast.LENGTH_SHORT).show();return;}
+        new android.app.AlertDialog.Builder(this).setTitle("Delete this meeting?")
+            .setMessage("Permanently delete this meeting's recording, transcript, summaries, notes, tasks and prepared exports. This cannot be undone. Other meetings, models and settings stay. Copies already saved outside the app stay.")
+            .setNegativeButton("Cancel",null).setPositiveButton("Delete permanently",(d,w)->deleteMeeting()).show();
+    }
+    private void deleteMeeting(){
+        if(deleting||meetingDirectory==null)return;
+        if(briefBusy||"RUNNING".equals(exportState)||otherMeetingWork()||!AutoTranscription.beginCleanSlate()){
+            Toast.makeText(this,"Finish recording, transcription or meeting work, then try again.",Toast.LENGTH_LONG).show();return;
+        }
+        deleting=true;visible=false;closePlayer();handler.removeCallbacksAndMessages(null);
+        TextView progress=text("Deleting meeting…",21);progress.setPadding(dp(24),dp(48),dp(24),dp(24));setContentView(progress);
+        final String id=meetingDirectory.getName();final android.content.Context app=getApplicationContext();
+        // Drain this detail worker, then all Main task saves, before deleting. Neither executor is abandoned on rotation.
+        loader.execute(()->MainActivity.runStorageTask(()->{
+            String message;
+            try{CleanSlate.deleteMeeting(app.getFilesDir(),app.getCacheDir(),id,()->AutoTranscription.removeDeletedMeeting(app,id));message="Meeting deleted. Other meetings and models kept.";}
+            catch(CleanSlate.LegacyFilesPresent legacy){message="Meeting not deleted: older prepared exports cannot be assigned to one meeting. Delete all meetings can clear them, but also deletes every other meeting.";}
+            catch(IOException failure){message="Deletion could not finish. Reopen this meeting and retry; some of its data may remain.";}
+            finally{AutoTranscription.endCleanSlate();}
+            final String result=message;
+            new Handler(Looper.getMainLooper()).post(()->{
+                Toast.makeText(app,result,Toast.LENGTH_LONG).show();
+                if(!isDestroyed()){
+                    startActivity(new android.content.Intent(this,MainActivity.class).addFlags(android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP).putExtra("popPage","Meetings"));finish();
+                }
+            });
+        }));
+    }
     private void updatePanels(){if(bottomMeetings!=null){NotebookNav.select(bottomMeetings,!"Tasks".equals(selectedTab));NotebookNav.select(bottomTasks,"Tasks".equals(selectedTab));}if(transcriptScroll==null)return;boolean t=!optionsOpen&&"Transcript".equals(selectedTab),n=!optionsOpen&&"Notes".equals(selectedTab),b=!optionsOpen&&"Brief".equals(selectedTab),task=!optionsOpen&&"Tasks".equals(selectedTab);briefScroll.setVisibility(b?0:8);transcriptScroll.setVisibility(t?0:8);notesScroll.setVisibility(n?0:8);optionsScroll.setVisibility(optionsOpen?0:8);tasksScroll.setVisibility(task?0:8);Button[] buttons={briefTab,notesTab,transcriptTab};boolean[] chosen={b,task,t};for(int i=0;i<buttons.length;i++){buttons[i].setSelected(chosen[i]);buttons[i].setTextColor(chosen[i]?0xFF203B9F:SECONDARY);buttons[i].setBackground(controlShape(chosen[i]?0xFFFFFFFF:0xFFF1E6CF,0xFFC9BFA8,0));buttons[i].setContentDescription(buttons[i].getText()+(chosen[i]?", selected":""));}}
     private void restorePanePosition(){if(transcriptionState.equals("LOADING")||notesLoaded<1)return;if(optionsOpen&&!restoredOptions){restoredOptions=true;optionsScroll.post(()->optionsScroll.scrollTo(0,restoreOptionsY));}else if(!optionsOpen&&"Notes".equals(selectedTab)&&!restoredNotes){restoredNotes=true;notesScroll.post(()->notesScroll.scrollTo(0,restoreNotesY));}else if(!optionsOpen&&"Transcript".equals(selectedTab)&&!restoredTranscript){restoredTranscript=true;transcriptScroll.post(()->transcriptScroll.scrollTo(0,restoreTranscriptY));}}
     private void disclosure(LinearLayout parent,String label,android.view.View details){Button toggle=button(label);details.setVisibility(android.view.View.GONE);toggle.setContentDescription("Show "+label.toLowerCase(java.util.Locale.ROOT));toggle.setOnClickListener(v->{PopUi.feedback(v,"button");boolean open=details.getVisibility()!=android.view.View.VISIBLE;details.setVisibility(open?0:8);toggle.setSelected(open);toggle.setContentDescription((open?"Hide ":"Show ")+label.toLowerCase(java.util.Locale.ROOT));});parent.addView(toggle);parent.addView(details);}

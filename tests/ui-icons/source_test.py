@@ -68,7 +68,7 @@ assert '.setTitle("JotterBook")' in main
 manifest = (ROOT / 'app/src/main/AndroidManifest.xml').read_text()
 assert 'android:label="JotterBook"' in manifest
 build = (ROOT / 'app/build.gradle.kts').read_text()
-assert 'versionCode = 67' in build and 'versionName = "1.0-pilot67"' in build
+assert 'versionCode = 68' in build and 'versionName = "1.0-pilot68"' in build
 print('PASS: candidate67 JotterBook identity, truthful empty/unavailable state, About callback and absence of viewport helpers/diagnostic tag (source only; phone geometry unmeasured)')
 
 # Preserve canonical task save target and guard while permitting explicit feedback.

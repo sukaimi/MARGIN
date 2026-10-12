@@ -25,10 +25,12 @@ python3 tests/ui-icons/source_test.py
 python3 tests/recorder-diagnostics/run.py
 sh tests/brief-accuracy/run.sh
 sh tests/clean-slate/run.sh
+sh tests/meeting-delete/run.sh
 python3 tests/woven-ui/check.py
 python3 tests/woven-ui/fallback_host.py
 python3 tests/woven-ui/texture_visibility.py
 JSON_JAR=/absolute/path/json-20240303.jar python3 tests/flow-host/run.py
+JSON_JAR=/absolute/path/json-20240303.jar python3 tests/meeting-delete/queue_host.py
 ```
 
 The texture-composite check uses DejaVu Sans at the standard Linux font path. Its output is a synthetic host illustration, not an Android screenshot.

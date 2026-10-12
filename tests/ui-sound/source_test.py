@@ -83,5 +83,5 @@ print('PASS: retention, cancellation, mute, readiness-only loading and exact foc
 assert 'manualFinishSoundEpoch=UiSoundEngine.INSTANCE.muteEpoch();startService(' in main
 assert 'manualFinishSoundEpoch' not in main.split('onSaveInstanceState',1)[1]
 assert 'android:name=".MeetingDetailActivity" android:exported="false"' in (root/'app/src/main/AndroidManifest.xml').read_text()
-assert 'versionCode = 67' in (root/'app/build.gradle.kts').read_text()
+assert 'versionCode = 68' in (root/'app/build.gradle.kts').read_text()
 print('PASS: mute invalidates finish intent before navigation; marker stays internal and transient')

@@ -1,55 +1,66 @@
-# Phase 1 engineering handoff
+# Phase 1 handoff
 
-Candidate: **67 / 1.0-pilot67**. Field acceptance remains pending. This document separates source/build checks from work that requires the actual Android app and hardware.
+Current source: **68 / 1.0-pilot68**. MARGIN is the repository; JotterBook is the app name. This remains an experimental, local-first Android prototype.
 
-## Included
+## Closeout status
 
-- Brings the public source forward from the earlier Build 57 snapshot to the JotterBook notebook UI and local meeting workflow.
-- Retains record-entry, recording-start, session-index, UI-sound and privacy-oriented recorder-diagnostic guards.
-- Improves visible paper grain and contained raised edges without replacing the approved artwork.
-- Adds conservative summary tripwires and source-linked draft checks. Generated claims remain unverified.
-- Adds an explicit clean-slate action for app-owned meeting data.
+- Existing field-device recordings were cleared with the all-meetings reset on 12 October 2026. The empty recordings/tasks state persisted after relaunch.
+- Per-meeting deletion is implemented, reviewed, host-tested and compiled in Build 68.
+- The current source and handoff are tracked in [PR #1](https://github.com/sukaimi/MARGIN/pull/1). Main has not been merged.
+- Build 68 installation on the phone is pending. Full recording, native transcription/summary and endurance acceptance remain field work.
 
-## Clean-slate behavior
+## Delete one meeting
 
-Open **About → Delete all meetings → Delete permanently**. The confirmation explains that deletion cannot be undone.
+Open a meeting, then **More → Delete meeting → Delete permanently**. Cancel leaves the meeting unchanged.
 
-The action removes local meetings, recordings, transcripts, summaries, notes, tasks, prepared private exports, the auto-transcription index and recognized temporary export/prompt files. It preserves downloaded models, model-verification cache and app settings. Files already exported outside the app remain outside its scope.
+Deletion targets that meeting's recording, transcripts, summaries, notes, tasks, automatic-transcription queue entry and session-owned prepared export/prompt files. Other meetings, their queue entries and derivatives, models, settings and externally saved copies stay.
 
-Recording, transcription and open or retiring meeting work block deletion. The filesystem helper preflights the targeted paths, rejects symlinks/path escape and bounds recursion. Deletion is logical filesystem removal, not a forensic secure-erase claim. It is not atomic: an I/O failure can leave some data; the app reports incomplete deletion and allows retry.
+New private derivatives use an exact meeting UUID plus a separate request UUID. Recognized legacy unowned exports or temporary files block per-meeting deletion before mutation because ownership cannot be proven. The error explains that the all-meetings reset can clear the legacy set and also deletes every other meeting. Do not use it when other meetings must be kept.
 
-The host regression uses disposable synthetic directories only. It does not delete data on an installed app or establish Android lifecycle acceptance.
+The action reserves the recording/transcription gate, blocks new meeting work, drains the relevant workers and validates its paths before deletion. It rejects invalid IDs, symlinks and path escape. Queue updates preserve other IDs and metadata, including safe backup recovery. Target meeting metadata is removed last so ordinary partial failures can still be retried, including when audio loading fails.
+
+Deletion is logical filesystem removal and is non-atomic. An I/O failure can leave some selected-meeting data; the app reports the failure. This is not a forensic secure-erase or crash-durability guarantee.
+
+## Delete all meetings
+
+Open **About → Delete all meetings → Delete permanently**.
+
+This removes app-private meeting data, prepared exports, the automatic-transcription index and recognized temporary export/prompt files. Models, model-verification cache, settings and copies already saved outside the app remain outside its scope. Recording, transcription and open or retiring meeting work block the action.
 
 ## Verification
 
-Host checks passed on the final sanitized source on 2026-10-10, using JDK 17:
+Final Build 68 source passed:
 
-- 77 record-entry guard/source checks
-- 131 recording-start/rotation checks plus timer, ownership and rejected-edge source assertions
-- 96 UI-sound gate checks plus source/lifecycle contracts
-- 55 session-index checks plus source contracts
-- 2,438 recorder-logger checks; 188 retained synthetic rows verified against the five-field privacy schema
-- 40 summary tripwire/contract checks
-- 33 clean-slate filesystem checks plus 20 UI/lifecycle/worker-exclusion source contracts
-- 30 storage-flow checks across write/reopen/tamper JVM runs
-- UI-icon and asset/source checks; production surface against null/OOM/success decode stubs; synthetic texture/contrast checks
+- 162 per-meeting filesystem/isolation checks
+- 27 per-meeting confirmation, lifecycle, queue and ownership source contracts
+- 152 checks against the production automatic-transcription queue and recording-start gate
+- The existing 33 all-delete filesystem checks and 20 source contracts
+- Existing entry, recording-start/timer, UI-sound, session-index, recorder-diagnostics, summary-tripwire, storage-flow and notebook-UI host suites
 
-These are host/source tests. Native ASR and Android APIs in the storage-flow suite use explicit doubles. No native model inference, microphone capture or installed-device reset was performed. Synthetic paper contrast measured 5.35:1 at the worst tested secondary-text sample; this does not establish physical-screen acceptance.
+Fixtures are synthetic. Android services, engine calls, AtomicFile recovery and directory fsync in the queue harness are explicit host doubles or models. These checks do not establish Android lifecycle or crash-durability behavior. No microphone capture or model inference was run in the host suites. See [per-meeting tests](tests/meeting-delete/README.md) and [BUILD.md](BUILD.md) for commands.
 
-Android `assembleRelease` passed on the same production source with Gradle 8.13 and Android SDK/build-tools 35, including release lint, resource linking, Java compilation, DEX and packaging (45 tasks). The resulting APK was verified as version 67 and unsigned; ZIP integrity/alignment and expected native/model payload hashes passed. The public repository omits those acquired dependencies, all APKs and signing material. See BUILD.md to reconstruct the build environment.
+The final Android release assembly passed with JDK 17, Gradle 8.13 and Android SDK/build-tools 35, including release lint, resource linking, Java compilation, DEX and packaging. The final incremental build completed 45 tasks, with 8 executed and 37 up-to-date, after a successful 45-task full build. Version/package, ZIP integrity/alignment and preserved model/native payloads were checked. The cloud APK is unsigned and cannot be installed as-is; installation requires the authorized matching signing key.
 
-A separately signed candidate has been installed on one test device. This installation does not establish recording, transcription, summary or clean-slate acceptance; installed-app deletion remains pending. The cloud-built unsigned APK cannot be installed as-is. No GitHub Actions workflow is included in this repository; local cloud checks above are the verification record.
+The public tree contains source, tests, notices and reviewed UI assets. Model weights, AAR/native/APK binaries, credentials, signing material, local configuration and private recordings/transcripts are excluded. No GitHub Actions workflow is configured; the above checks were run in the cloud build environment.
 
-## Field checks intentionally deferred
+## Device evidence
 
-1. Record real spoken input, stop, and run actual Whisper/VAD transcription. Confirm saved audio and transcript after force-stop/reopen.
-2. If using the optional Smol model, generate a draft and compare every claim, name, date, qualifier and citation with the original evidence.
-3. Exercise permission denial, rotation, backgrounding, notification Stop, interruption/resume and repeated navigation.
-4. Validate a long recording, memory/thermal/battery behavior, export destination, font scaling, texture visibility and UI-sound policy.
-5. On disposable test meetings, exercise clean-slate cancel, busy rejection, successful reset, reopen and a fresh recording; verify models/settings and externally saved exports survive.
+On 12 October 2026, the Build 67 all-meetings reset completed on the field device. After relaunch, the app showed zero recordings and zero tasks and confirmed that models/settings were kept. This was a UI-level cleanup check; individual retained model files were not hash-verified. No new recording was created for the check.
 
-Use the authorized signing key for an installed-app update. Do not uninstall or clear app data to work around a signing mismatch. An unsigned build cannot be installed as delivered.
+Build 68 installation remains pending. The per-meeting flow has not been exercised on the phone; no sample meeting was added to the clean device.
+
+## Deferred field acceptance
+
+The following are deliberately outside this quick-fix closeout:
+
+1. Real spoken recording through Whisper/VAD, followed by force-stop/reopen and audio/transcript comparison
+2. Optional native Smol drafts checked claim by claim against evidence
+3. Permission denial, rotation, backgrounding, notification Stop, interruption/resume and repeated navigation on Android
+4. Long-recording memory, thermal and battery behavior; export destinations; font scaling, texture appearance and sound policy
+5. On future disposable test meetings, Android per-meeting delete/cancel/busy/failure/reopen behavior
+
+Do not uninstall or clear app data to work around a signing mismatch.
 
 ## Showcase boundary
 
-The defensible story is a local-first, evidence-linked Android prototype with explicit verification boundaries. Demonstrate using synthetic or expressly consented material. Do not present generated design boards or host pixel composites as device screenshots, claim production readiness, benchmark accuracy or long-duration reliability, or describe pending field checks as passed.
+Describe the work as a local-first, evidence-linked engineering prototype. Use synthetic or expressly consented material. Label generated design boards and host pixel composites as illustrations. Production readiness, general accuracy, commercial comparisons and long-duration reliability have not been established.

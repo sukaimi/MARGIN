@@ -96,6 +96,30 @@ final class AutoTranscription {
                 ||"STARTING".equals(RecorderService.getStatus())||"RECORDING".equals(RecorderService.getStatus()))return false;
         cleanSlate=true;return true;
     }
+    static synchronized void removeDeletedMeeting(Context c,String id)throws IOException {
+        if(!cleanSlate||working)throw new IOException("Deletion requires idle queue");
+        if(id==null||!id.matches("[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}"))throw new IOException("Invalid meeting id");
+        try {
+            File f=index(c).getAbsoluteFile();
+            for(String suffix:new String[]{"",".bak",".new"}){
+                File candidate=new File(f+suffix);
+                if(java.nio.file.Files.isSymbolicLink(candidate.toPath())||!candidate.equals(candidate.getCanonicalFile())
+                        ||(candidate.exists()&&(!candidate.isFile()||candidate.length()>262144)))throw new IOException("Unsafe queue path");
+            }
+            if(!f.exists()&&!new File(f+".bak").exists()&&!new File(f+".new").exists())return;
+            File backup=new File(f+".bak");
+            // Parse only the chosen, preflighted file. A backup is not a second AtomicFile.
+            ByteArrayOutputStream bytes=new ByteArrayOutputStream();
+            try(InputStream input=new FileInputStream(backup.isFile()?backup:f)){
+                byte[] buffer=new byte[4096];int n,total=0;
+                while((n=input.read(buffer))!=-1){total+=n;if(total>262144)throw new IOException("Queue record exceeds limit");bytes.write(buffer,0,n);}
+            }
+            JSONObject record=new JSONObject(bytes.toString(StandardCharsets.UTF_8.name()));JSONArray old=record.getJSONArray("ids"),next=new JSONArray();
+            if(old.length()>LIMIT)throw new IOException("Queue index exceeds bounded limit");
+            for(int i=0;i<old.length();i++){String candidate=old.getString(i);if(!id.equals(candidate))next.put(candidate);}
+            write(f,record.put("ids",next));
+        }catch(Exception failure){throw new IOException("Meeting queue cleanup unavailable",failure);}
+    }
     static synchronized long cleanSlateRevision(){return cleanSlateRevision;}
     static synchronized void endCleanSlate(){cleanSlate=false;cleanSlateRevision++;}
     static synchronized boolean blocked(){return cleanSlate||captureRequested||RecorderService.isRecording()||PopUi.capturePending;}
