@@ -1,15 +1,1 @@
-<?xml version="1.0" encoding="utf-8"?>
-<vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="108dp" android:height="108dp"
-    android:viewportWidth="108" android:viewportHeight="108">
-    <!-- PopUi.brandMark: coral behind yellow, both tilted -13 degrees.
-         The mark and outlines fit within the central 66dp safe-zone circle. -->
-    <group android:rotation="-13" android:pivotX="54" android:pivotY="54">
-        <path android:fillColor="@color/icon_coral"
-            android:strokeColor="@color/icon_cobalt" android:strokeWidth="1.5"
-            android:pathData="M51.8,40.8 H67.2 Q76,40.8 76,49.6 V65 Q76,73.8 67.2,73.8 H51.8 Q43,73.8 43,65 V49.6 Q43,40.8 51.8,40.8 Z" />
-        <path android:fillColor="@color/icon_yellow"
-            android:strokeColor="@color/icon_cobalt" android:strokeWidth="1.5"
-            android:pathData="M40.8,34.2 H56.2 Q65,34.2 65,43 V58.4 Q65,67.2 56.2,67.2 H40.8 Q32,67.2 32,58.4 V43 Q32,34.2 40.8,34.2 Z" />
-    </group>
-</vector>
+<bitmap xmlns:android="http://schemas.android.com/apk/res/android" android:src="@drawable/ic_launcher_book" android:gravity="fill" />

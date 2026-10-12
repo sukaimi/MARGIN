@@ -10,13 +10,36 @@ sh tests/record-entry/run.sh
 
 No Android dependencies or downloads are required. The runner compiles the pure-Java guard and tests in an owned `/tmp` directory and removes it on exit. It checks rejected external/forged/replayed/expired/overwritten/restored tokens, one-time valid consumption, process-local state and source wiring for both Main entry points and the Detail click-only mint. These are JVM and static source checks, not device or Android runtime validation.
 
-This public derivative is version code 57 / `1.0-pilot57`, based on Build 56 plus the privacy guard. The installed field phone remains 56. The historical 14-second build applies to the unfixed copy; the guarded derivative passed 68 standalone JVM guard/source checks and an offline Mac Android build in 10 seconds (10.923 seconds wall time). It is not physically tested.
+See [PHASE1.md](PHASE1.md) for the current candidate and exact verification scope. Host tests do not establish device acceptance. The UI label is JotterBook; the repository remains MARGIN.
+
+## Host regression suite
+
+Use JDK 17 or newer, Python 3, Pillow, and the standalone JSON test dependency described in [tests/flow-host/README.md](tests/flow-host/README.md). Keep dependency jars outside the repository.
+
+```sh
+sh tests/record-entry/run.sh
+sh tests/recording-timer/run.sh
+sh tests/ui-sound/run.sh
+sh tests/session-index/run.sh
+python3 tests/ui-icons/source_test.py
+python3 tests/recorder-diagnostics/run.py
+sh tests/brief-accuracy/run.sh
+sh tests/clean-slate/run.sh
+sh tests/meeting-delete/run.sh
+python3 tests/woven-ui/check.py
+python3 tests/woven-ui/fallback_host.py
+python3 tests/woven-ui/texture_visibility.py
+JSON_JAR=/absolute/path/json-20240303.jar python3 tests/flow-host/run.py
+JSON_JAR=/absolute/path/json-20240303.jar python3 tests/meeting-delete/queue_host.py
+```
+
+The texture-composite check uses DejaVu Sans at the standard Linux font path. Its output is a synthetic host illustration, not an Android screenshot.
 
 ## Mandatory dependencies
 
 Install JDK 17, Gradle 8.13, Android SDK platform 35 and build tools 35.0.0 on your development machine. There is no Gradle wrapper; use installed `gradle`. Configure your SDK with `ANDROID_HOME` or an ignored `local.properties` containing your own `sdk.dir`. The generic Gradle JVM heap is 2 GB; no host-specific Java path is supplied.
 
-Download on the development machine, outside Git staging. Do not commit weights, AARs, JNI binaries or APKs. [dependency-pins.json](dependency-pins.json) records the five mandatory files, their already verified official URLs, byte sizes and SHA-256 values matching the installed dependencies.
+Download on the development machine, outside Git staging. Do not commit weights, AARs, JNI binaries or APKs. [dependency-pins.json](dependency-pins.json) records the five mandatory files, their already verified official URLs, byte sizes and SHA-256 values for reproducible dependency verification.
 
 1. Download the official [sherpa-onnx 1.13.5 AAR](https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.5/sherpa-onnx-1.13.5.aar) to `app/libs/sherpa-onnx-1.13.5.aar`.
 2. Download and extract the official [Whisper tiny.en archive](https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-whisper-tiny.en.tar.bz2). Copy its three specified members to the paths below; use the quantized encoder and decoder.

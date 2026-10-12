@@ -14,7 +14,8 @@ import org.json.*;
 final class AutoTranscription {
     static final int LIMIT=32;
     private static final String MARKER="auto-transcription.json";
-    private static boolean captureRequested,working;
+    private static boolean captureRequested,working,cleanSlate;
+    private static long cleanSlateRevision;
     private static final String PROCESS=UUID.randomUUID().toString();
     private static AtomicBoolean activePause;
     private static String activeId;
@@ -89,7 +90,39 @@ final class AutoTranscription {
     static synchronized boolean captureRequested(){return captureRequested;}
     static synchronized boolean quiescent(){return !working;}
     static synchronized void releaseCapture(){captureRequested=false;}
-    static synchronized boolean blocked(){return captureRequested||RecorderService.isRecording()||PopUi.capturePending;}
+    static synchronized boolean cleanSlateRequested(){return cleanSlate;}
+    static synchronized boolean beginCleanSlate(){
+        if(cleanSlate||working||blocked()||RecordingStartGate.INSTANCE.pending()
+                ||"STARTING".equals(RecorderService.getStatus())||"RECORDING".equals(RecorderService.getStatus()))return false;
+        cleanSlate=true;return true;
+    }
+    static synchronized void removeDeletedMeeting(Context c,String id)throws IOException {
+        if(!cleanSlate||working)throw new IOException("Deletion requires idle queue");
+        if(id==null||!id.matches("[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}"))throw new IOException("Invalid meeting id");
+        try {
+            File f=index(c).getAbsoluteFile();
+            for(String suffix:new String[]{"",".bak",".new"}){
+                File candidate=new File(f+suffix);
+                if(java.nio.file.Files.isSymbolicLink(candidate.toPath())||!candidate.equals(candidate.getCanonicalFile())
+                        ||(candidate.exists()&&(!candidate.isFile()||candidate.length()>262144)))throw new IOException("Unsafe queue path");
+            }
+            if(!f.exists()&&!new File(f+".bak").exists()&&!new File(f+".new").exists())return;
+            File backup=new File(f+".bak");
+            // Parse only the chosen, preflighted file. A backup is not a second AtomicFile.
+            ByteArrayOutputStream bytes=new ByteArrayOutputStream();
+            try(InputStream input=new FileInputStream(backup.isFile()?backup:f)){
+                byte[] buffer=new byte[4096];int n,total=0;
+                while((n=input.read(buffer))!=-1){total+=n;if(total>262144)throw new IOException("Queue record exceeds limit");bytes.write(buffer,0,n);}
+            }
+            JSONObject record=new JSONObject(bytes.toString(StandardCharsets.UTF_8.name()));JSONArray old=record.getJSONArray("ids"),next=new JSONArray();
+            if(old.length()>LIMIT)throw new IOException("Queue index exceeds bounded limit");
+            for(int i=0;i<old.length();i++){String candidate=old.getString(i);if(!id.equals(candidate))next.put(candidate);}
+            write(f,record.put("ids",next));
+        }catch(Exception failure){throw new IOException("Meeting queue cleanup unavailable",failure);}
+    }
+    static synchronized long cleanSlateRevision(){return cleanSlateRevision;}
+    static synchronized void endCleanSlate(){cleanSlate=false;cleanSlateRevision++;}
+    static synchronized boolean blocked(){return cleanSlate||captureRequested||RecorderService.isRecording()||PopUi.capturePending;}
     /** Public static final configuration fields must be scalar constants, never identity-based objects. */
     static String configurationConstants()throws Exception {return configurationConstants(AsrConfiguration.class);}
     static String configurationConstants(Class<?> configuration)throws Exception {
@@ -130,10 +163,11 @@ final class AutoTranscription {
         write(new File(meeting(c,activeId),MARKER),s);
     }
     static synchronized void foregroundUnavailable(Context c,String reason)throws Exception {
+        if(cleanSlate)return;
         JSONArray list=ids(c);for(int i=0;i<list.length();i++){String id=list.getString(i);JSONObject s=status(c,id);if(s!=null&&("QUEUED".equals(s.optString("status"))||"RUNNING".equals(s.optString("status")))){
             if(s.optBoolean("automatic")&&(!working||!id.equals(activeId)))s.put("status","QUEUED");s.put("error",reason).put("waitingForeground",true);write(new File(meeting(c,id),MARKER),s);
         }}
     }
-    static synchronized boolean eligible(Context c)throws Exception{JSONArray list=ids(c);for(int i=0;i<list.length();i++){JSONObject s=status(c,list.getString(i));if(s!=null&&ready(s)&&("QUEUED".equals(s.optString("status"))||"RUNNING".equals(s.optString("status")))&&(s.optBoolean("automatic")||PROCESS.equals(s.optString("owner"))))return true;}return false;}
+    static synchronized boolean eligible(Context c)throws Exception{if(cleanSlate)return false;JSONArray list=ids(c);for(int i=0;i<list.length();i++){JSONObject s=status(c,list.getString(i));if(s!=null&&ready(s)&&("QUEUED".equals(s.optString("status"))||"RUNNING".equals(s.optString("status")))&&(s.optBoolean("automatic")||PROCESS.equals(s.optString("owner"))))return true;}return false;}
     static void kick(Context c){if(blocked())return;try{if(!eligible(c))return;}catch(Exception e){return;}try{c.startForegroundService(new Intent(c,AutoTranscriptionService.class));}catch(Exception e){try{foregroundUnavailable(c,"Background start unavailable; waiting for an app foreground kick.");}catch(Exception ignored){}}}
 }
