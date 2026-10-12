@@ -10,8 +10,8 @@ android {
         applicationId = "ai.codeandcraft.secondbrain"
         minSdk = 26
         targetSdk = 35
-        versionCode = 67
-        versionName = "1.0-pilot67"
+        versionCode = 68
+        versionName = "1.0-pilot68"
         ndk {
             abiFilters.add("arm64-v8a")
         }

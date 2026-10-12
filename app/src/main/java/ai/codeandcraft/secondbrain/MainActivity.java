@@ -15,6 +15,7 @@ public class MainActivity extends Activity {
     private final Handler handler=new Handler(Looper.getMainLooper());
     // Process-wide ordering keeps saves from older Activity instances ahead of deletion.
     private static final ExecutorService loader=Executors.newSingleThreadExecutor();
+    static void runStorageTask(Runnable task){loader.execute(task);}
     private final ArrayList<JSONObject> meetings=new ArrayList<>();
     private LinearLayout root,content;private TextView state,timer;private RecordingOrbView orb;
     private boolean manualFinishCue,cleanSlateVisible;

@@ -51,13 +51,14 @@ public final class MeetingExport {
         File zip = null, produced = null, work = null, moved = null;
         try {
             stop(token);
+            String meetingId = SourceBundle.meetingId(meeting);
             JSONObject bundle = SourceBundle.create(context, meeting, token);
-            zip = ownedZip(context, bundle.getString("file"));
+            zip = ownedZip(context, bundle.getString("file"), meetingId);
             stop(token);
             long startUtc = 0;
             JSONObject result;
             if ("everything".equals(kind)) {
-                try (Snapshot s = new Snapshot(zip, bundle.getString("sha256"))) { startUtc = s.json("session.json", 262144).optLong("startUtc", 0); }
+                try (Snapshot s = new Snapshot(zip, bundle.getString("sha256"), meetingId)) { startUtc = s.json("session.json", 262144).optLong("startUtc", 0); }
                 result = new JSONObject(bundle.toString()).put("mimeType", "application/zip").put("displayName", name(kind, "zip", startUtc)).put("kind", kind);
                 stop(token);
                 zip = null;
@@ -65,7 +66,7 @@ public final class MeetingExport {
             }
             File cache = context.getCacheDir().getAbsoluteFile();
             require(cache.equals(cache.getCanonicalFile()) && cache.isDirectory(), "EXPORT_FAILED");
-            File candidate = new File(cache, "export-" + UUID.randomUUID());
+            File candidate = new File(cache, "export-" + meetingId + "--" + UUID.randomUUID());
             require(candidate.equals(candidate.getCanonicalFile()) && candidate.mkdir(), "EXPORT_FAILED");
             work = candidate;
             File destination = new File(work, zip.getName());
@@ -74,7 +75,7 @@ public final class MeetingExport {
             moved = destination;
             zip = moved;
             stop(token);
-            try (Snapshot s = new Snapshot(zip, bundle.getString("sha256"))) {
+            try (Snapshot s = new Snapshot(zip, bundle.getString("sha256"), meetingId)) {
                 JSONObject session = s.json("session.json", 262144);
                 startUtc = session.optLong("startUtc", 0);
                 if ("audio".equals(kind)) result = audio(context, s, session, startUtc, token);
@@ -82,7 +83,7 @@ public final class MeetingExport {
                     String text = "notes".equals(kind) ? notes(s, session, startUtc) : transcript(context, meeting, s, session, startUtc, token);
                     byte[] bytes = text.getBytes(StandardCharsets.UTF_8);
                     require(bytes.length <= MAX_TEXT_BYTES, "EXPORT_LIMIT");
-                    result = commit(context, kind, "txt", "text/plain", startUtc, bytes.length, token, out -> out.write(bytes));
+                    result = commit(context, s.meetingId, kind, "txt", "text/plain", startUtc, bytes.length, token, out -> out.write(bytes));
                 }
             }
             produced = new File(result.getString("file"));
@@ -100,9 +101,9 @@ public final class MeetingExport {
         }
     }
 
-    private static File ownedZip(Context context, String path) throws Exception {
+    private static File ownedZip(Context context, String path, String meetingId) throws Exception {
         File file = new File(path).getAbsoluteFile(), exports = new File(context.getFilesDir().getCanonicalFile(), "exports");
-        require(file.equals(file.getCanonicalFile()) && exports.equals(exports.getCanonicalFile()) && exports.equals(file.getParentFile()) && file.getName().matches("[a-f0-9-]{36}\\.zip") && UUID.fromString(file.getName().substring(0, 36)).toString().equals(file.getName().substring(0, 36)) && file.isFile(), "EXPORT_FAILED");
+        require(file.equals(file.getCanonicalFile()) && exports.equals(exports.getCanonicalFile()) && exports.equals(file.getParentFile()) && file.getName().matches("[a-f0-9-]{36}--[a-f0-9-]{36}\\.zip") && file.getName().startsWith(meetingId + "--") && UUID.fromString(file.getName().substring(38, 74)).toString().equals(file.getName().substring(38, 74)) && file.isFile(), "EXPORT_FAILED");
         return file;
     }
 
@@ -112,12 +113,15 @@ public final class MeetingExport {
 
     /** Hash-checked read-only view of the bundle ZIP. */
     private static final class Snapshot implements Closeable {
-        final ZipFile zip; final Map<String, String> hashes = new TreeMap<>();
-        Snapshot(File file, String sha) throws Exception {
+        final ZipFile zip; final String meetingId; final Map<String, String> hashes = new TreeMap<>();
+        Snapshot(File file, String sha, String expectedMeetingId) throws Exception {
             require(file.length() <= MAX_BYTES + 4L * 1024 * 1024 && sha.equals(SourceBundle.sha(file)), "EXPORT_FAILED");
             zip = new ZipFile(file);
             try {
-                JSONArray files = new JSONObject(utf8(read("manifest.json", MAX_JSON, null))).getJSONArray("files");
+                JSONObject manifest = new JSONObject(utf8(read("manifest.json", MAX_JSON, null)));
+                meetingId = manifest.getString("meetingId");
+                require(expectedMeetingId.equals(meetingId), "EXPORT_FAILED");
+                JSONArray files = manifest.getJSONArray("files");
                 for (int i = 0; i < files.length(); i++) require(hashes.put(files.getJSONObject(i).getString("path"), files.getJSONObject(i).getString("sha256")) == null, "EXPORT_FAILED");
             } catch (Exception error) {
                 try { zip.close(); } catch (IOException closeError) { error.addSuppressed(closeError); }
@@ -231,7 +235,7 @@ public final class MeetingExport {
             total += sizes[i]; require(total <= MAX_BYTES - 44 && total <= 0xFFFFFFFFL - 36, "EXPORT_LIMIT");
         }
         final long pcm = total;
-        return commit(ctx, "audio", "wav", "audio/wav", startUtc, pcm + 44, cancel, out -> {
+        return commit(ctx, s.meetingId, "audio", "wav", "audio/wav", startUtc, pcm + 44, cancel, out -> {
             ByteBuffer h = ByteBuffer.allocate(44).order(ByteOrder.LITTLE_ENDIAN);
             h.put("RIFF".getBytes(StandardCharsets.US_ASCII)).putInt((int) (36 + pcm)).put("WAVEfmt ".getBytes(StandardCharsets.US_ASCII)).putInt(16).putShort((short) 1).putShort((short) 1).putInt(RATE).putInt(RATE * 2).putShort((short) 2).putShort((short) 16).put("data".getBytes(StandardCharsets.US_ASCII)).putInt((int) pcm);
             out.write(h.array());
@@ -284,14 +288,14 @@ public final class MeetingExport {
         @Override public void write(byte[] b, int off, int len) throws IOException { stop(cancel); count += len; require(count <= MAX_BYTES, "EXPORT_LIMIT"); digest.update(b, off, len); file.write(b, off, len); }
     }
 
-    /** Writes UUID.part, syncs, renames atomically, syncs the directory and re-reads the committed file's hash. */
-    private static JSONObject commit(Context context, String kind, String ext, String mime, long startUtc, long estimate, AtomicBoolean cancel, Producer producer) throws Exception {
+    /** Writes meeting-UUID--random-UUID.ext.part, syncs, renames atomically, syncs the directory and re-reads the committed file's hash. */
+    private static JSONObject commit(Context context, String meetingId, String kind, String ext, String mime, long startUtc, long estimate, AtomicBoolean cancel, Producer producer) throws Exception {
         File dir = new File(context.getFilesDir().getCanonicalFile(), "exports").getAbsoluteFile();
         require(dir.equals(dir.getCanonicalFile()) && dir.isDirectory(), "EXPORT_FAILED");
         File[] previous = dir.listFiles();
         require(previous != null && previous.length < 16, "EXPORT_LIMIT");
         require(dir.getUsableSpace() > estimate + 16L * 1024 * 1024, "EXPORT_STORAGE");
-        String id = UUID.randomUUID().toString(); File part = new File(dir, id + "." + ext + ".part"), result = new File(dir, id + "." + ext);
+        String id = meetingId + "--" + UUID.randomUUID().toString(); File part = new File(dir, id + "." + ext + ".part"), result = new File(dir, id + "." + ext);
         require(part.createNewFile(), "EXPORT_FAILED"); boolean committed = false;
         try {
             Sink sink; String sha;

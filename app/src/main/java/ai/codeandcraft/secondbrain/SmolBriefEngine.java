@@ -42,6 +42,7 @@ public final class SmolBriefEngine implements MeetingBriefEngine {
         File work = null, prompt = null, schema = null;
         try {
             checkLive(cancel);
+            String meetingId = SourceBundle.meetingId(meeting);
             JSONObject evidence = EvidenceExcerptBaseline.build(context, meeting, 8, 5000, cancel);
             checkLive(cancel);
             String status = evidence.optString("status");
@@ -55,7 +56,7 @@ public final class SmolBriefEngine implements MeetingBriefEngine {
             File exe = new File(context.getApplicationInfo().nativeLibraryDir, EXECUTABLE);
             if (model == null || !exe.isFile() || !exe.canExecute()) return result("MODEL_UNAVAILABLE", "MODEL_UNAVAILABLE", begin);
             work = privateDir(context);
-            String name = UUID.randomUUID().toString();
+            String name = meetingId + "--" + UUID.randomUUID().toString();
             prompt = inside(work, name + ".prompt"); schema = inside(work, name + ".schema.json");
             write(prompt, buildPrompt(snippets));
             write(schema, schema(snippets.size()));

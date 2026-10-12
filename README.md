@@ -12,7 +12,7 @@ The design question is simple: can a meeting assistant keep the original evidenc
 - TXT, WAV and ZIP exports
 - Optional, manually requested Smol drafts with source references and conservative claim checks
 - Notebook textures, contained raised edges, native controls and opt-in tactile UI sounds
-- An explicit, in-app clean-slate reset with busy-work and path-safety guards
+- Per-meeting deletion and an all-meetings clean-slate reset, with explicit confirmation, busy-work and path-safety guards
 
 The app manifest has no Internet permission. Dependencies and models are downloaded separately on a development machine. Recording still requires microphone permission and a deliberate user action. Incoming record navigation uses a short-lived, process-local, one-time token.
 
@@ -26,7 +26,7 @@ The summary guard catches a narrow set of lexical contradictions. It can reject 
 
 ## Build and verify
 
-See [BUILD.md](BUILD.md). The candidate is version 67 / `1.0-pilot67`, ARM64, Android API 26+, compile/target API 35, JDK 17, Gradle 8.13 and Android Gradle Plugin 8.9.2. No Gradle wrapper is included. Required dependency locations, official download sources and SHA-256 pins are documented.
+See [BUILD.md](BUILD.md). The candidate is version 68 / `1.0-pilot68`, ARM64, Android API 26+, compile/target API 35, JDK 17, Gradle 8.13 and Android Gradle Plugin 8.9.2. No Gradle wrapper is included. Required dependency locations, official download sources and SHA-256 pins are documented.
 
 Model weights, native runners, AARs, APKs, signing keys, local configuration and user recordings/transcripts are excluded. Only the reviewed generated UI images and credited UI sound cues are included as media assets. An optional model/native runner must be acquired separately to exercise Smol drafts.
 
