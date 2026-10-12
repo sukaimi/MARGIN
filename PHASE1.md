@@ -1,13 +1,13 @@
 # Phase 1 handoff
 
-Current source: **68 / 1.0-pilot68**. MARGIN is the repository; JotterBook is the app name. This remains an experimental, local-first Android prototype.
+Current source: **68 / 1.0-pilot68**. The requested quick-fix implementation, installation and source handoff are complete. MARGIN is the repository; JotterBook is the app name. This remains an experimental, local-first Android prototype.
 
 ## Closeout status
 
 - Existing field-device recordings were cleared with the all-meetings reset on 12 October 2026. The empty recordings/tasks state persisted after relaunch.
 - Per-meeting deletion is implemented, reviewed, host-tested and compiled in Build 68.
 - The current source and handoff are tracked in [PR #1](https://github.com/sukaimi/MARGIN/pull/1). Main has not been merged.
-- Build 68 installation on the phone is pending. Full recording, native transcription/summary and endurance acceptance remain field work.
+- Build 68 was installed in place, with package version, APK identity and signing continuity verified. App data identity was preserved. Full recording, native transcription/summary and endurance acceptance remain field work.
 
 ## Delete one meeting
 
@@ -47,7 +47,7 @@ The public tree contains source, tests, notices and reviewed UI assets. Model we
 
 On 12 October 2026, the Build 67 all-meetings reset completed on the field device. After relaunch, the app showed zero recordings and zero tasks and confirmed that models/settings were kept. This was a UI-level cleanup check; individual retained model files were not hash-verified. No new recording was created for the check.
 
-Build 68 installation remains pending. The per-meeting flow has not been exercised on the phone; no sample meeting was added to the clean device.
+Build 68 was subsequently installed in place. The installed package version, APK identity and continuity with the existing signing certificate were verified, and app data identity was unchanged. No post-update UI recheck was performed, so the zero-recordings/zero-tasks UI evidence above is from before the update. The new per-meeting deletion flow has not been exercised on the phone. No sample meeting or recording was added. These field-validation limits remain documented for future use.
 
 ## Deferred field acceptance
 

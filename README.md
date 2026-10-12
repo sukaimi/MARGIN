@@ -20,7 +20,7 @@ Automatic ASR applies only to marked, newly finished sessions. Interrupted work 
 
 ## Status
 
-This is a source-only experimental prototype, not a production release or an accuracy-certified meeting service. Phase 1 engineering closes at a field-QA handoff; full microphone-to-transcript-to-summary, endurance, physical UI and sound acceptance remain pending. See [PHASE1.md](PHASE1.md) for the verification record, reset behavior and remaining field checks.
+This is a source-only experimental prototype, not a production release or an accuracy-certified meeting service. The Build 68 quick-fix implementation and installation handoff are complete; full microphone-to-transcript-to-summary, endurance, physical UI and sound acceptance remain pending. See [PHASE1.md](PHASE1.md) for the verification record, reset behavior and remaining field checks.
 
 The summary guard catches a narrow set of lexical contradictions. It can reject valid wording and miss unsupported paraphrases. A citation does not prove a claim is correct. Every generated draft requires human review; no comparison with a commercial recorder or general accuracy guarantee is claimed.
 
