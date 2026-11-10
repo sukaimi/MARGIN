@@ -86,6 +86,17 @@ public final class MeetingQueueHostTest {
         });
     }
 
+    private static void androidDirectoryAlias() throws Exception {
+        Context real = fixture(); put(real, record(SELECTED, FIRST));
+        Path alias = root.resolve("android-files-alias");
+        Files.createSymbolicLink(alias, real.getFilesDir().toPath());
+        Context android = new Context(alias.toFile());
+        withCleanSlate(() -> {
+            AutoTranscription.removeDeletedMeeting(android, SELECTED);
+            check(get(real).similar(record(FIRST)), "Android directory alias permits deletion and preserves other IDs");
+        });
+    }
+
     private static void gateRules() throws Exception {
         Context context = fixture(); put(context, record(SELECTED, FIRST));
         byte[] before = Files.readAllBytes(index(context));
@@ -294,8 +305,8 @@ public final class MeetingQueueHostTest {
     }
 
     public static void main(String[] args) throws Exception {
-        root = Files.createDirectories(Path.of(args[0]));
-        preserveOtherMeetings(); gateRules(); activeWorkerBlocksGate(); invalidInputs(); linkedPaths(); atomicFileModel();
+        root = Files.createDirectories(Path.of(args[0])).toRealPath();
+        preserveOtherMeetings(); androidDirectoryAlias(); gateRules(); activeWorkerBlocksGate(); invalidInputs(); linkedPaths(); atomicFileModel();
         System.out.println("PASS: " + checks + " production meeting queue / recording gate host checks");
         System.out.println("HOST ONLY: Android service/engine and directory fsync are doubles; AtomicFile backup/.new behavior is modeled, not device or crash-durability proof.");
     }

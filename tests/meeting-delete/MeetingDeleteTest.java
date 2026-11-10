@@ -12,7 +12,7 @@ public final class MeetingDeleteTest {
     private static void unchanged(Map<Path,byte[]> saved)throws Exception{for(var e:saved.entrySet())ok(Files.exists(e.getKey())&&Arrays.equals(e.getValue(),Files.readAllBytes(e.getKey())),"Unchanged "+e.getKey());}
     private static void reject(Path f,Path c,String id)throws Exception{boolean failed=false;int[] queue={0};try{CleanSlate.deleteMeeting(f.toFile(),c.toFile(),id,()->queue[0]++);}catch(IOException e){failed=true;}ok(failed,"Rejected unsafe deletion");ok(queue[0]==0,"Rejected before queue mutation");}
     public static void main(String[] args)throws Exception{
-        Path root=Path.of(args[0]),f=Files.createDirectories(root.resolve("files")),c=Files.createDirectories(root.resolve("cache"));
+        Path root=Files.createDirectories(Path.of(args[0])).toRealPath(),f=Files.createDirectories(root.resolve("files")),c=Files.createDirectories(root.resolve("cache"));
         String[] sessionFiles={"session.json","chunk-0.wav","chunk-1.wav.part","transcripts/t/record.json","transcription-jobs/j/truth/source.wav","briefs/revision.json","notes/event.json","corrections/event.json"};
         for(String id:new String[]{A,B}){
             for(String n:sessionFiles)put(f,"sessions/"+id+"/"+n);

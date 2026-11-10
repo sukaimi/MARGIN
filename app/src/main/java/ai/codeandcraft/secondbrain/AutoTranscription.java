@@ -100,7 +100,10 @@ final class AutoTranscription {
         if(!cleanSlate||working)throw new IOException("Deletion requires idle queue");
         if(id==null||!id.matches("[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}"))throw new IOException("Invalid meeting id");
         try {
-            File f=index(c).getAbsoluteFile();
+            // Android filesDir may use /data/user/0 while canonical storage uses /data/data.
+            // Normalize the parent only: queue-file symlinks must still be rejected below.
+            File queue=index(c);
+            File f=new File(queue.getParentFile().getCanonicalFile(),queue.getName());
             for(String suffix:new String[]{"",".bak",".new"}){
                 File candidate=new File(f+suffix);
                 if(java.nio.file.Files.isSymbolicLink(candidate.toPath())||!candidate.equals(candidate.getCanonicalFile())

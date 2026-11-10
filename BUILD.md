@@ -33,6 +33,8 @@ JSON_JAR=/absolute/path/json-20240303.jar python3 tests/flow-host/run.py
 JSON_JAR=/absolute/path/json-20240303.jar python3 tests/meeting-delete/queue_host.py
 ```
 
+On macOS, run the storage-flow suite with `TMPDIR=/private/tmp` to avoid the default temporary-directory alias; the production brief store intentionally rejects non-canonical paths. See [VERIFICATION.md](VERIFICATION.md) for current results and limits.
+
 The texture-composite check uses DejaVu Sans at the standard Linux font path. Its output is a synthetic host illustration, not an Android screenshot.
 
 ## Mandatory dependencies

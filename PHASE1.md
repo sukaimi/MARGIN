@@ -2,6 +2,8 @@
 
 Current source: **68 / 1.0-pilot68**. The requested quick-fix implementation, installation and source handoff are complete. MARGIN is the repository; JotterBook is the app name. This remains an experimental, local-first Android prototype.
 
+This is the historical 12 October closeout record. The later 20 October directory-alias repair is preserved in [REPAIR.md](REPAIR.md); its device result supersedes the earlier per-meeting-delete field gap below, but not the other deferred acceptance work.
+
 ## Closeout status
 
 - Existing field-device recordings were cleared with the all-meetings reset on 12 October 2026. The empty recordings/tasks state persisted after relaunch.
